@@ -26,7 +26,7 @@ jobs:
           else
             echo "::add-matcher::.github/workflows/flake8-matcher.json"
           fi
-          python -m flake8 src/ai/backend tests
+          python -m flake8 src/etcetra tests
 
   typecheck:
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
           else
             echo "::add-matcher::.github/workflows/mypy-matcher.json"
           fi
-          python -m mypy --no-color-output src/ai/backend tests
+          python -m mypy --no-color-output src/etcetra tests
 
   test:
     runs-on: ubuntu-latest
