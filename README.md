@@ -199,5 +199,5 @@ async with etcd.connect() with communicator:
 # Compiling Protobuf
 
 ```bash
-$ scripts/compile_protobuf.py
+$ scripts/compile_protobuf.py <target Etcd version>
 ```
