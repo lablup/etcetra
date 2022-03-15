@@ -32,7 +32,10 @@ async def test_watch(etcd: EtcdClient):
     put_task.cancel()
     watch_task.cancel()
 
-    assert events[0] == WatchEvent('/tmp/asd', 'fgh', WatchEventType.PUT)
-    assert events[1] == WatchEvent('/tmp/qwe', 'rty', WatchEventType.PUT)
-    assert events[2] == WatchEvent('/tmp/qwe', '', WatchEventType.DELETE)
+    assert events[0] == WatchEvent(
+        key='/tmp/asd', value='fgh', prev_value=None, event=WatchEventType.PUT)
+    assert events[1] == WatchEvent(
+        key='/tmp/qwe', value='rty', prev_value=None, event=WatchEventType.PUT)
+    assert events[2] == WatchEvent(
+        key='/tmp/qwe', value='', prev_value=None, event=WatchEventType.DELETE)
     assert len(events) == 3
