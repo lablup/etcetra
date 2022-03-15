@@ -3,6 +3,7 @@ Pure python asyncio Etcd client.
 """
 
 from __future__ import annotations
+import asyncio
 
 import contextlib
 from typing import (
@@ -938,6 +939,7 @@ class EtcdCommunicator:
 
     async def _watch_impl(
         self, key: bytes, encoding: str,
+        ready_event: Optional[asyncio.Event] = None,
         filters: Optional[List[WatchCreateRequestFilterType]] = None,
         fragment: bool = False,
         prev_kv: bool = False,
@@ -969,6 +971,8 @@ class EtcdCommunicator:
         await stream.write(request)
 
         try:
+            if ready_event is not None:
+                ready_event.set()
             while True:
                 response = await stream.read()
                 watch_id = response.watch_id
@@ -995,6 +999,7 @@ class EtcdCommunicator:
 
     def watch(
         self, key: str,
+        ready_event: Optional[asyncio.Event] = None,
         filters: Optional[List[WatchCreateRequestFilterType]] = None,
         prev_kv: bool = False,
         progress_notify: bool = False,
@@ -1013,6 +1018,9 @@ class EtcdCommunicator:
         ---------
         key
             The key to watch events.
+        ready_event
+            If this value is set, `Event.set()` will be called
+            when watch is ready to accept events.
         filters
             Events to filter. Defaults to `None`.
             If this list is `None`, `watch` will yield all types of event.
@@ -1049,13 +1057,14 @@ class EtcdCommunicator:
 
         return self._watch_impl(
             key.encode(encoding), encoding,
-            filters=filters, prev_kv=prev_kv,
+            ready_event=ready_event, filters=filters, prev_kv=prev_kv,
             progress_notify=progress_notify, start_revision=start_revision,
             watch_id=watch_id,
         )
 
     def watch_prefix(
         self, key: str,
+        ready_event: Optional[asyncio.Event] = None,
         filters: Optional[List[WatchCreateRequestFilterType]] = None,
         prev_kv: bool = False,
         progress_notify: bool = True,
@@ -1074,6 +1083,9 @@ class EtcdCommunicator:
         ---------
         key
             The key prefix to watch events.
+        ready_event
+            If this value is set, `Event.set()` will be called
+            when watch is ready to accept events.
         filters
             Events to filter. Defaults to `None`.
             If this list is `None`, `watch` will yield all types of event.
@@ -1115,9 +1127,9 @@ class EtcdCommunicator:
             range_end = encoded_key[:-1] + bytes([encoded_key[-1] + 1])
         return self._watch_impl(
             key.encode(encoding), encoding,
-            filters=filters, prev_kv=prev_kv, range_end=range_end,
-            progress_notify=progress_notify, start_revision=start_revision,
-            watch_id=watch_id,
+            ready_event=ready_event, filters=filters, prev_kv=prev_kv,
+            range_end=range_end, progress_notify=progress_notify,
+            start_revision=start_revision, watch_id=watch_id,
         )
 
     async def txn(
@@ -1150,9 +1162,9 @@ class EtcdCommunicator:
             this instance.
             Defaults to `utf-8`.
 
-        Returns: TxnReturnValues
+        Returns
         -------
-        values
+        values: List[TxnReturnType]
             Values returned in each calls inside transaction.
             If the call is `put` or `delete`, `None` will take that place.
         """
@@ -1210,9 +1222,9 @@ class EtcdCommunicator:
             this instance.
             Defaults to `utf-8`.
 
-        Returns: TxnReturnValues
+        Returns
         -------
-        values
+        values: List[TxnReturnType]
             Values returned in each calls inside transaction.
             If the call is `put` or `delete`, `None` will take that place.
         """
