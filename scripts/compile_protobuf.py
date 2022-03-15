@@ -90,15 +90,15 @@ def main(version: str, repo_path: Optional[Path] = None):
             googleapis_root / 'google',
             gogoproto_root / 'gogoproto',
         ]
-        packages: List[str] = [
-            'gogoproto', 'google/http', 'google/api'
-        ]
+        packages: List[str] = ['gogoproto', 'google/http', 'google/api']
         for subdir in glob.glob((repo_path / 'api' / '*pb').as_posix()):
             packages.append('etcd/api/' + Path(subdir).name)
         print('packages:', packages)
         protos_to_compile: List[str] = []
         for raw_subdir in search_directories:
-            for raw_protobuf_file in glob.glob((raw_subdir / '**' / '*.proto').as_posix(), recursive=True):
+            for raw_protobuf_file in glob.glob(
+                (raw_subdir / '**' / '*.proto').as_posix(), recursive=True,
+            ):
                 protobuf_file = Path(raw_protobuf_file).resolve()
 
                 with open(protobuf_file, 'r') as fr:
@@ -125,7 +125,6 @@ def main(version: str, repo_path: Optional[Path] = None):
                 [],
             )
             proto_name = proto.name.rsplit('.', 1)[0]
-            proto_filename = proto.as_posix().replace(tmp_dst.as_posix() + '/', '')
             base_pkg = 'from etcetra.grpc_api'
             for python_file in [proto_name + '_pb2.py', proto_name + '_pb2_grpc.py']:
                 print('updating:', python_file)
