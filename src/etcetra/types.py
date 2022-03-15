@@ -8,6 +8,27 @@ if TYPE_CHECKING:
 
 from etcetra.grpc_api import rpc_pb2
 
+__all__ = (
+    'RangeRequestSortOrder',
+    'RangeRequestSortTarget',
+    'WatchCreateRequestFilterType',
+    'CompareCompareResult',
+    'CompareCompareTarget',
+    'WatchEventType',
+    'CompareKey',
+    'CompareBuilder',
+    'EtcdCredential',
+    'HostPortPair',
+    'WatchEvent',
+    'PutRequestType',
+    'RangeRequestType',
+    'DeleteRangeRequestType',
+    'TransactionRequest',
+    'NoneType',
+    'TxnReturnValues',
+    'TxnReturnType',
+)
+
 
 class RangeRequestSortOrder(enum.Enum):
     NONE = 0
