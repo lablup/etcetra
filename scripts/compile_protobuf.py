@@ -151,6 +151,9 @@ def main(version: str, repo_path: Optional[Path] = None):
                             replaced_line = f'from . import {filename}_pb2 as {filename}__pb2\n'
                         elif line.startswith('DESCRIPTOR = '):
                             replaced_line = line
+                            # FIXME: Manually included line below crashes when Protobuf API backend
+                            # is `cpp` instead of `python`. We should find out more generalized way
+                            # which supports both `cpp` and `python` mode and apply.
                             replaced_line += ('_descriptor_pool.Default()._internal_db.'
                                               f'_file_desc_protos_by_file[\'{proto_filename}\']'
                                               ' = DESCRIPTOR')
