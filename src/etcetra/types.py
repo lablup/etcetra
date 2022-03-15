@@ -6,7 +6,7 @@ from typing import Any, List, Mapping, NamedTuple, Optional, Union, TYPE_CHECKIN
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
 
-from etcetra.grpc_api.etcdserverpb import rpc_pb2
+from etcetra.grpc_api import rpc_pb2
 
 
 class RangeRequestSortOrder(enum.Enum):

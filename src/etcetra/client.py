@@ -20,8 +20,8 @@ from async_timeout import timeout
 import grpc
 from grpc.aio import Channel
 
-from .grpc_api.etcdserverpb import rpc_pb2, rpc_pb2_grpc
-from .grpc_api.v3lockpb import v3lock_pb2, v3lock_pb2_grpc
+from .grpc_api import rpc_pb2, rpc_pb2_grpc
+from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
     DeleteRangeRequestType, EtcdCredential, HostPortPair, PutRequestType,
     RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,

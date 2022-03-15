@@ -81,46 +81,39 @@ def main(version: str, repo_path: Optional[Path] = None):
         package_root.parent.mkdir(parents=True, exist_ok=True)
 
         # copy dependency protobufs
-        (tmp_dst / 'gogoproto').mkdir()
-        shutil.copytree(googleapis_root / 'google', tmp_dst / 'google')
-        shutil.copy(
-            gogoproto_root / 'gogoproto' / 'gogo.proto',
-            tmp_dst / 'gogoproto' / 'gogo.proto',
-        )
 
         exec_command(['chmod', '-R', '755', tmp_dst.as_posix()])
 
-        protos_to_compile: List[Path] = [tmp_dst / 'gogoproto' / 'gogo.proto']
-        for google_protobuf in glob.glob(
-            (tmp_dst / 'google').as_posix() + '/**/*.proto',
-            recursive=True,
-        ):
-            protos_to_compile.append(Path(google_protobuf))
-
-        search_directories = list(glob.glob((repo_path / 'api' / '*pb').as_posix()))
-        search_directories += list(
-            glob.glob((repo_path / 'server' / 'etcdserver' / 'api' / '**' / '*pb').as_posix()),
-        )
+        search_directories = [
+            repo_path / 'server' / 'etcdserver' / 'api',
+            repo_path / 'api' / '*pb',
+            googleapis_root / 'google',
+            gogoproto_root / 'gogoproto',
+        ]
+        packages: List[str] = ['gogoproto', 'google/http', 'google/api']
+        for subdir in glob.glob((repo_path / 'api' / '*pb').as_posix()):
+            packages.append('etcd/api/' + Path(subdir).name)
+        print('packages:', packages)
+        protos_to_compile: List[str] = []
         for raw_subdir in search_directories:
-            subdir = Path(raw_subdir).resolve()
-            if not subdir.is_dir() and not subdir.name.endswith('pb'):
-                continue
-            (tmp_dst / subdir.name).mkdir()
-            (tmp_dst / subdir.name / '__init__.py').touch()
-
-            for raw_protobuf_file in glob.glob(raw_subdir + '/*.proto'):
+            for raw_protobuf_file in glob.glob(
+                (raw_subdir / '**' / '*.proto').as_posix(), recursive=True,
+            ):
                 protobuf_file = Path(raw_protobuf_file).resolve()
-                protos_to_compile.append(tmp_dst / subdir.name / protobuf_file.name)
 
                 with open(protobuf_file, 'r') as fr:
                     modified_protobuf = ''
                     for line in fr.readlines():
-                        if line.startswith('import "etcd/api'):
-                            modified_protobuf += line.replace('import "etcd/api/', 'import "')
+                        for package in packages:
+                            if line.startswith(f'import "{package}/'):
+                                print(':matched', package)
+                                modified_protobuf += line.replace(f'import "{package}/', 'import "')
+                                break
                         else:
                             modified_protobuf += line
-                with open(tmp_dst / subdir.name / protobuf_file.name, 'w') as fw:
+                with open(tmp_dst / protobuf_file.name, 'w') as fw:
                     fw.write(modified_protobuf)
+                protos_to_compile.append(tmp_dst / protobuf_file.name)
 
         SAME_PACKAGE_IMPORT = re.compile(r'^import ([^_]+)_pb2')
         RELATIVE_IMPORT = re.compile(r'^from ([^ ]+)pb import ([^_]+)_pb2')
@@ -129,10 +122,9 @@ def main(version: str, repo_path: Optional[Path] = None):
             build_proto(
                 proto,
                 proto.parent,
-                [tmp_dst],
+                [],
             )
             proto_name = proto.name.rsplit('.', 1)[0]
-            proto_filename = proto.as_posix().replace(tmp_dst.as_posix() + '/', '')
             base_pkg = 'from etcetra.grpc_api'
             for python_file in [proto_name + '_pb2.py', proto_name + '_pb2_grpc.py']:
                 print('updating:', python_file)
@@ -140,23 +132,17 @@ def main(version: str, repo_path: Optional[Path] = None):
                     replaced_script = ''
                     for line in fr.readlines():
                         if line.startswith('from gogoproto'):
-                            replaced_line = line.replace('from gogoproto', f'{base_pkg}.gogoproto')
+                            replaced_line = line.replace('from gogoproto', f'{base_pkg}')
                         elif line.startswith('from google.api'):
-                            replaced_line = line.replace('from google.api', f'{base_pkg}.google.api')
+                            replaced_line = line.replace('from google.api', f'{base_pkg}')
                         elif matched := RELATIVE_IMPORT.match(line):
                             package, file = matched.groups()
-                            replaced_line = f'{base_pkg}.{package}pb import {file}_pb2 as {file}__pb2\n'
+                            replaced_line = f'{base_pkg} import {file}_pb2 as {file}__pb2\n'
                         elif matched := SAME_PACKAGE_IMPORT.match(line):
                             filename = matched.groups()[0]
-                            replaced_line = f'from . import {filename}_pb2 as {filename}__pb2\n'
+                            replaced_line = f'{base_pkg} import {filename}_pb2 as {filename}__pb2\n'
                         elif line.startswith('DESCRIPTOR = '):
                             replaced_line = line
-                            # FIXME: Manually included line below crashes when Protobuf API backend
-                            # is `cpp` instead of `python`. We should find out more generalized way
-                            # which supports both `cpp` and `python` mode and apply.
-                            replaced_line += ('_descriptor_pool.Default()._internal_db.'
-                                              f'_file_desc_protos_by_file[\'{proto_filename}\']'
-                                              ' = DESCRIPTOR')
                         else:
                             replaced_line = line
                         replaced_script += replaced_line
@@ -170,7 +156,7 @@ def main(version: str, repo_path: Optional[Path] = None):
     finally:
         if did_clone:
             shutil.rmtree(repo_path)
-        shutil.rmtree(tmp_dst)
+        # shutil.rmtree(tmp_dst)
 
 
 if __name__ == '__main__':
