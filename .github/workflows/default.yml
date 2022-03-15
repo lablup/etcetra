@@ -1,0 +1,131 @@
+name: default
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+          cache: "pip"
+          cache-dependency-path: |
+            setup.cfg
+            requirements/lint.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -U -r requirements/lint.txt
+      - name: Lint with flake8
+        run: |
+          if [ "$GITHUB_EVENT_NAME" == "pull_request" -a -n "$GITHUB_HEAD_REF" ]; then
+            echo "(skipping matchers for pull request from local branches)"
+          else
+            echo "::add-matcher::.github/workflows/flake8-matcher.json"
+          fi
+          python -m flake8 src/etcetra tests
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+          cache: "pip"
+          cache-dependency-path: |
+            setup.cfg
+            requirements/typecheck.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -U -r requirements/typecheck.txt
+      - name: Type check with mypy
+        run: |
+          if [ "$GITHUB_EVENT_NAME" == "pull_request" -a -n "$GITHUB_HEAD_REF" ]; then
+            echo "(skipping matchers for pull request from local branches)"
+          else
+            echo "::add-matcher::.github/workflows/mypy-matcher.json"
+          fi
+          python -m mypy --no-color-output src/etcetra tests
+
+  test:
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+          cache: "pip"
+          cache-dependency-path: |
+            setup.cfg
+            requirements/test.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -U -r requirements/test.txt
+      - name: Prepare testing
+        run: |
+          mkdir -p /tmp/etcd
+          docker run -d -p 2379:2379 -p 2380:2380 \
+           -v /tmp/etcd:/etcd-data \
+           --name backendai-etcd \
+           quay.io/coreos/etcd:v3.4.1 \
+           /usr/local/bin/etcd \
+           --name backendai-etcd \
+           --data-dir /etcd-data \
+           --listen-client-urls http://0.0.0.0:2379 \
+           --advertise-client-urls http://0.0.0.0:2379 \
+           --listen-peer-urls http://0.0.0.0:2380 \
+           --initial-advertise-peer-urls http://0.0.0.0:2380 \
+           --initial-cluster backendai-etcd=http://0.0.0.0:2380 \
+           --initial-cluster-token backendai-etcd-token \
+           --initial-cluster-state new \
+           --auto-compaction-retention 1
+      - name: Register post-action to clean the temporary etcd container
+        uses: webiny/action-post-run@2.0.1
+        id: clean-temporary-etcd-container
+        with:
+          run: docker rm -f backendai-etcd
+      - name: Test with pytest
+        timeout-minutes: 6
+        env:
+          PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+        run: |
+          python -m pytest -v --cov=src
+      - name: Send code coverage report
+        uses: codecov/codecov-action@v1
+
+  deploy-to-pypi:
+    needs: [lint, typecheck, test]
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+          cache: "pip"
+          cache-dependency-path: |
+            setup.cfg
+            requirements/build.txt
+      - name: Install dependencies
+        env:
+          REQUIREMENTS_FILE: build
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -U -r requirements/build.txt
+      - name: Build and publish
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          python setup.py sdist bdist_wheel
+          twine upload dist/*

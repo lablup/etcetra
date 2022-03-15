@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import enum
-from typing import Any, List, Mapping, NamedTuple, Optional, Union
-from typing_extensions import TypeAlias
+from typing import Any, List, Mapping, NamedTuple, Optional, Union, TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing_extensions import TypeAlias
 
 from etcetra.grpc_api.etcdserverpb import rpc_pb2
 
