@@ -153,3 +153,5 @@ cython_debug/
 
 .vscode
 .python-version
+.swp
+.*.swp
