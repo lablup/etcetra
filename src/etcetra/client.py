@@ -5,7 +5,6 @@ Pure python asyncio Etcd client.
 from __future__ import annotations
 import asyncio
 
-import contextlib
 from typing import (
     AsyncIterator,
     Callable,
@@ -23,8 +22,8 @@ from grpc.aio import Channel
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
-    DeleteRangeRequestType, EtcdCredential, HostPortPair, PutRequestType,
-    RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
+    DeleteRangeRequestType, EtcdCredential, EtcdLockOption, HostPortPair,
+    PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
     TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
     WatchEvent, WatchEventType,
 )
@@ -81,7 +80,13 @@ class EtcdClient:
             chan = grpc.aio.insecure_channel(str(self.addr))
         return chan
 
-    @contextlib.asynccontextmanager
+    async def _connect(self):
+        chan = self._build_channel()
+        communicator = EtcdCommunicator(chan)
+        if creds := self._creds:
+            await communicator._authenticate(creds.username, creds.password)
+        return communicator
+
     async def connect(self):
         """
         Async generator which establishes connection to Etcd cluster.
@@ -91,15 +96,8 @@ class EtcdClient:
         communicator: EtcdCommunicator
             An `EtcdCommunicator` instance.
         """
-        chan = self._build_channel()
+        return EtcdConnectionManager(self._connect())
 
-        communicator = EtcdCommunicator(chan)
-        if creds := self._creds:
-            await communicator._authenticate(creds.username, creds.password)
-        yield communicator
-        await chan.close()
-
-    @contextlib.asynccontextmanager
     async def with_lock(self, lock_name: str, timeout: Optional[float] = None):
         """
         Async generator which establishes connection and then immediately tries to
@@ -124,14 +122,33 @@ class EtcdClient:
         asyncio.TimeoutError
             When timeout expires.
         """
-        async with self.connect() as communicator:
-            lock_key = None
-            try:
-                lock_key = await communicator._lock(lock_name, timeout_seconds=timeout)
-                yield communicator
-            finally:
-                if lock_key is not None:
-                    await communicator._unlock(lock_key)
+        lock_opt = EtcdLockOption(lock_name, timeout=timeout)
+        return EtcdConnectionManager(self._connect(), lock_option=lock_opt)
+
+
+class EtcdConnectionManager:
+    communicator: EtcdCommunicator
+
+    _lock_option: Optional[EtcdLockOption]
+    _lock_key: Optional[str]
+
+    def __init__(
+        self, communicator: EtcdCommunicator,
+        lock_option: Optional[EtcdLockOption] = None,
+    ) -> None:
+        self.communicator = communicator
+        self._lock_option = lock_option
+
+    async def __aenter__(self) -> EtcdCommunicator:
+        if lock_opt := self._lock_option:
+            self._lock_key = await self.communicator._lock(
+                lock_opt.lock_name, timeout_seconds=lock_opt.timeout)
+        return self.communicator
+
+    async def __aexit__(self, *args, **kwargs):
+        if self._lock_option is not None and self._lock_key is not None:
+            await self.communicator._unlock(self._lock_key)
+        self.communicator.channel.close()
 
 
 class EtcdRequestGenerator:
