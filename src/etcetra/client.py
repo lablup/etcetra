@@ -13,6 +13,8 @@ from typing import (
     MutableMapping,
     Optional,
     OrderedDict,
+    Protocol,
+    TypeVar,
 )
 from async_timeout import timeout
 
@@ -32,6 +34,12 @@ __all__ = (
     'EtcdCommunicator',
     'EtcdTransactionAction',
 )
+T = TypeVar('T', covariant=True)
+
+
+class Proto(Protocol[T]):
+    async def meth(self) -> T:
+        pass
 
 
 class EtcdClient:
@@ -80,12 +88,17 @@ class EtcdClient:
             chan = grpc.aio.insecure_channel(str(self.addr))
         return chan
 
-    async def _connect(self):
+    def _build_connector_protocol(self) -> Proto[EtcdCommunicator]:
         chan = self._build_channel()
-        communicator = EtcdCommunicator(chan)
-        if creds := self._creds:
-            await communicator._authenticate(creds.username, creds.password)
-        return communicator
+        _creds = self._creds
+
+        class P(Proto):
+            async def meth(self) -> EtcdCommunicator:
+                communicator = EtcdCommunicator(chan)
+                if creds := _creds:
+                    await communicator._authenticate(creds.username, creds.password)
+                return communicator
+        return P()
 
     def connect(self):
         """
@@ -96,7 +109,7 @@ class EtcdClient:
         communicator: EtcdCommunicator
             An `EtcdCommunicator` instance.
         """
-        return EtcdConnectionManager(self._connect())
+        return EtcdConnectionManager(self._build_connector_protocol())
 
     def with_lock(self, lock_name: str, timeout: Optional[float] = None):
         """
@@ -123,32 +136,42 @@ class EtcdClient:
             When timeout expires.
         """
         lock_opt = EtcdLockOption(lock_name, timeout=timeout)
-        return EtcdConnectionManager(self._connect(), lock_option=lock_opt)
+        return EtcdConnectionManager(self._build_connector_protocol(), lock_option=lock_opt)
 
 
 class EtcdConnectionManager:
-    communicator: EtcdCommunicator
+    communicator_builder: Proto[EtcdCommunicator]
 
     _lock_option: Optional[EtcdLockOption]
     _lock_key: Optional[str]
+    _communicator: Optional[EtcdCommunicator]
 
     def __init__(
-        self, communicator: EtcdCommunicator,
+        self,
+        communicator_builder: Proto[EtcdCommunicator],
         lock_option: Optional[EtcdLockOption] = None,
     ) -> None:
-        self.communicator = communicator
+        self.communicator_builder = communicator_builder
         self._lock_option = lock_option
+        self._lock_key = None
+        self._communicator = None
 
     async def __aenter__(self) -> EtcdCommunicator:
+        if self._communicator is None:
+            self._communicator = await self.communicator_builder.meth()
         if lock_opt := self._lock_option:
-            self._lock_key = await self.communicator._lock(
+            self._lock_key = await self._communicator._lock(
                 lock_opt.lock_name, timeout_seconds=lock_opt.timeout)
-        return self.communicator
+        return self._communicator
 
-    async def __aexit__(self, *args, **kwargs):
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._communicator is None:
+            raise ValueError('__aexit__ called before __aenter__ called')
         if self._lock_option is not None and self._lock_key is not None:
-            await self.communicator._unlock(self._lock_key)
-        self.communicator.channel.close()
+            await self._communicator._unlock(self._lock_key)
+        await self._communicator.channel.close()
+        if exc_type is not None:
+            raise exc
 
 
 class EtcdRequestGenerator:
