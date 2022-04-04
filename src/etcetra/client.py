@@ -32,6 +32,7 @@ from .types import (
 __all__ = (
     'EtcdClient',
     'EtcdCommunicator',
+    'EtcdConnectionManager',
     'EtcdTransactionAction',
 )
 T = TypeVar('T', covariant=True)
@@ -170,8 +171,7 @@ class EtcdConnectionManager:
         if self._lock_option is not None and self._lock_key is not None:
             await self._communicator._unlock(self._lock_key)
         await self._communicator.channel.close()
-        if exc_type is not None:
-            raise exc
+        return False
 
 
 class EtcdRequestGenerator:
