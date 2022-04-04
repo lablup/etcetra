@@ -5,7 +5,6 @@ Pure python asyncio Etcd client.
 from __future__ import annotations
 import asyncio
 
-import contextlib
 from typing import (
     AsyncIterator,
     Callable,
@@ -14,6 +13,8 @@ from typing import (
     MutableMapping,
     Optional,
     OrderedDict,
+    Protocol,
+    TypeVar,
 )
 from async_timeout import timeout
 
@@ -23,8 +24,8 @@ from grpc.aio import Channel
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
-    DeleteRangeRequestType, EtcdCredential, HostPortPair, PutRequestType,
-    RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
+    DeleteRangeRequestType, EtcdCredential, EtcdLockOption, HostPortPair,
+    PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
     TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
     WatchEvent, WatchEventType,
 )
@@ -33,6 +34,12 @@ __all__ = (
     'EtcdCommunicator',
     'EtcdTransactionAction',
 )
+T = TypeVar('T', covariant=True)
+
+
+class Proto(Protocol[T]):
+    async def meth(self) -> T:
+        pass
 
 
 class EtcdClient:
@@ -81,29 +88,33 @@ class EtcdClient:
             chan = grpc.aio.insecure_channel(str(self.addr))
         return chan
 
-    @contextlib.asynccontextmanager
-    async def connect(self):
+    def _build_connector_protocol(self) -> Proto[EtcdCommunicator]:
+        chan = self._build_channel()
+        _creds = self._creds
+
+        class P(Proto):
+            async def meth(self) -> EtcdCommunicator:
+                communicator = EtcdCommunicator(chan)
+                if creds := _creds:
+                    await communicator._authenticate(creds.username, creds.password)
+                return communicator
+        return P()
+
+    def connect(self):
         """
-        Async generator which establishes connection to Etcd cluster.
+        Async context manager which establishes connection to Etcd cluster.
 
         Returns
         -------
         communicator: EtcdCommunicator
             An `EtcdCommunicator` instance.
         """
-        chan = self._build_channel()
+        return EtcdConnectionManager(self._build_connector_protocol())
 
-        communicator = EtcdCommunicator(chan)
-        if creds := self._creds:
-            await communicator._authenticate(creds.username, creds.password)
-        yield communicator
-        await chan.close()
-
-    @contextlib.asynccontextmanager
-    async def with_lock(self, lock_name: str, timeout: Optional[float] = None):
+    def with_lock(self, lock_name: str, timeout: Optional[float] = None):
         """
-        Async generator which establishes connection and then immediately tries to
-        acquire lock with given lock name.
+        Async context manager which establishes connection and then
+        immediately tries to acquire lock with given lock name.
         Acquired lock will automatically released when user exits `with` context.
 
         Parameters
@@ -124,14 +135,43 @@ class EtcdClient:
         asyncio.TimeoutError
             When timeout expires.
         """
-        async with self.connect() as communicator:
-            lock_key = None
-            try:
-                lock_key = await communicator._lock(lock_name, timeout_seconds=timeout)
-                yield communicator
-            finally:
-                if lock_key is not None:
-                    await communicator._unlock(lock_key)
+        lock_opt = EtcdLockOption(lock_name, timeout=timeout)
+        return EtcdConnectionManager(self._build_connector_protocol(), lock_option=lock_opt)
+
+
+class EtcdConnectionManager:
+    communicator_builder: Proto[EtcdCommunicator]
+
+    _lock_option: Optional[EtcdLockOption]
+    _lock_key: Optional[str]
+    _communicator: Optional[EtcdCommunicator]
+
+    def __init__(
+        self,
+        communicator_builder: Proto[EtcdCommunicator],
+        lock_option: Optional[EtcdLockOption] = None,
+    ) -> None:
+        self.communicator_builder = communicator_builder
+        self._lock_option = lock_option
+        self._lock_key = None
+        self._communicator = None
+
+    async def __aenter__(self) -> EtcdCommunicator:
+        if self._communicator is None:
+            self._communicator = await self.communicator_builder.meth()
+        if lock_opt := self._lock_option:
+            self._lock_key = await self._communicator._lock(
+                lock_opt.lock_name, timeout_seconds=lock_opt.timeout)
+        return self._communicator
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._communicator is None:
+            raise ValueError('__aexit__ called before __aenter__ called')
+        if self._lock_option is not None and self._lock_key is not None:
+            await self._communicator._unlock(self._lock_key)
+        await self._communicator.channel.close()
+        if exc_type is not None:
+            raise exc
 
 
 class EtcdRequestGenerator:

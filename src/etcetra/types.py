@@ -18,6 +18,7 @@ __all__ = (
     'CompareKey',
     'CompareBuilder',
     'EtcdCredential',
+    'EtcdLockOption',
     'HostPortPair',
     'WatchEvent',
     'PutRequestType',
@@ -180,3 +181,9 @@ class WatchEvent:
     value: Optional[str]
     prev_value: Optional[str]
     event: WatchEventType
+
+
+@dataclass
+class EtcdLockOption:
+    lock_name: str
+    timeout: Optional[float]
