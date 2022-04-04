@@ -87,9 +87,9 @@ class EtcdClient:
             await communicator._authenticate(creds.username, creds.password)
         return communicator
 
-    async def connect(self):
+    def connect(self):
         """
-        Async generator which establishes connection to Etcd cluster.
+        Async context manager which establishes connection to Etcd cluster.
 
         Returns
         -------
@@ -98,10 +98,10 @@ class EtcdClient:
         """
         return EtcdConnectionManager(self._connect())
 
-    async def with_lock(self, lock_name: str, timeout: Optional[float] = None):
+    def with_lock(self, lock_name: str, timeout: Optional[float] = None):
         """
-        Async generator which establishes connection and then immediately tries to
-        acquire lock with given lock name.
+        Async context manager which establishes connection and then
+        immediately tries to acquire lock with given lock name.
         Acquired lock will automatically released when user exits `with` context.
 
         Parameters
