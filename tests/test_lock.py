@@ -44,15 +44,16 @@ async def test_lock(etcd: EtcdClient):
     task_2.cancel()
     task_3.cancel()
 
+
 @pytest.mark.asyncio
 async def test_lock_ttl(etcd: EtcdClient):
-    queue: Queue[int] = Queue()
+    queue: Queue[float] = Queue()
 
     async def _lock_task_1():
         async with etcd.with_lock('/test/ttllocka', ttl=3):
             await asyncio.sleep(10)
 
-    async def _lock_task_2(queue: Queue[int]):
+    async def _lock_task_2(queue: Queue[float]):
         start = time.monotonic()
         await asyncio.sleep(0.1)
         async with etcd.with_lock('/test/ttllocka'):
