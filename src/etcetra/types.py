@@ -187,3 +187,4 @@ class WatchEvent:
 class EtcdLockOption:
     lock_name: str
     timeout: Optional[float]
+    ttl: Optional[int]
