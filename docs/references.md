@@ -9,7 +9,7 @@ In most cases, user can perform most of the jobs by creating EtcdClient object.
 
 
 #### connect()
-Async generator which establishes connection to Etcd cluster.
+Async context manager which establishes connection to Etcd cluster.
 
 
 * **Returns**
@@ -24,9 +24,9 @@ Async generator which establishes connection to Etcd cluster.
 
 
 
-#### with_lock(lock_name: str, timeout: Optional[float] = None)
-Async generator which establishes connection and then immediately tries to
-acquire lock with given lock name.
+#### with_lock(lock_name: str, timeout: Optional[float] = None, ttl: Optional[int] = None)
+Async context manager which establishes connection and then
+immediately tries to acquire lock with given lock name.
 Acquired lock will automatically released when user exits with context.
 
 
@@ -38,6 +38,11 @@ Acquired lock will automatically released when user exits with context.
 
     * **timeout** – Number of seconds to wait until lock is acquired. Defaults to None.
     If value is None, with_lock will wait forever until lock is acquired.
+
+
+    * **ttl** – If not None, sets a TTL to granted Lock.
+    The lock will be automatically released after this amount of seconds elapses.
+    Defaults to None.
 
 
 
@@ -340,6 +345,35 @@ Gets the key-value in dictionary from the key-value store with keys in [key, ran
 
 
 
+#### _async_ grant_lease(ttl: int, id: Optional[int] = None)
+Creates a lease which expires if the server does not receive a keepAlive
+within a given time to live period. All keys attached to the lease
+will be expired and deleted if the lease expires.
+Each expired key generates a delete event in the event history.
+
+
+* **Parameters**
+
+    
+    * **ttl** – Advisory time-to-live in seconds.
+
+
+    * **id** – Requested ID for the lease. If ID is set to None, the lessor chooses an ID.
+
+
+
+* **Returns**
+
+    **id** – Lease ID for the granted lease.
+
+
+
+* **Return type**
+
+    int
+
+
+
 #### _async_ keys_prefix(key: str, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, sort_order: etcetra.types.RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: etcetra.types.RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
 Gets the keys which has given prefix from the key-value store.
 
@@ -455,6 +489,32 @@ Gets the keys in the range from the key-value store.
 
 
 
+#### _async_ lease_keepalive(id: int, interval: float)
+Creates asyncio Task which sends Keepalive request to given lease ID.
+
+
+* **Parameters**
+
+    
+    * **id** – Lease ID to send Keepalive request.
+
+
+    * **interval** – Interval to send Keepalive request.
+
+
+
+* **Returns**
+
+    **task**
+
+
+
+* **Return type**
+
+    asyncio.Task
+
+
+
 #### _async_ put(key: str, value: Optional[str], lease: Optional[int] = None, prev_kv: bool = False, encoding: Optional[str] = None)
 Puts given key into the key-value store.
 
@@ -493,6 +553,16 @@ Puts given key into the key-value store.
 * **Return type**
 
     Optional[str]
+
+
+
+#### _async_ revoke_lease(id: int)
+Revokes a lease. All keys attached to the lease will expire and be deleted.
+
+
+* **Parameters**
+
+    **id** – Lease ID to revoke. When the ID is revoked, all associated keys will be deleted.
 
 
 
@@ -751,9 +821,19 @@ An enumeration.
 
 ### _class_ etcetra.types.CompareKey(key: 'str', target_lease: 'Optional[int]' = None, mod_revision: 'Optional[int]' = None, range_end: 'Optional[str]' = None, target_version: 'Optional[int]' = None, encoding: 'str' = 'utf-8')
 
+### etcetra.types.DeleteRangeRequestType()
+alias of `rpc_pb2.DeleteRangeRequest`
+
+
 ### _class_ etcetra.types.EtcdCredential(username: 'str', password: 'str')
 
+### _class_ etcetra.types.EtcdLockOption(lock_name: 'str', timeout: 'Optional[float]', ttl: 'Optional[int]')
+
 ### _class_ etcetra.types.HostPortPair(host: 'str', port: 'int')
+
+### etcetra.types.PutRequestType()
+alias of `rpc_pb2.PutRequest`
+
 
 ### _class_ etcetra.types.RangeRequestSortOrder(value)
 An enumeration.
@@ -761,6 +841,10 @@ An enumeration.
 
 ### _class_ etcetra.types.RangeRequestSortTarget(value)
 An enumeration.
+
+
+### etcetra.types.RangeRequestType()
+alias of `rpc_pb2.RangeRequest`
 
 
 ### _class_ etcetra.types.TxnReturnType(values, success)

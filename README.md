@@ -87,6 +87,27 @@ async with etcd.connect() as communicator:
 await asyncio.gather(first(), second())  # asyncio.TimeoutError followed by first: testvalue output
 ```
 
+Adding `ttl` parameter to `EtcdClient.with_lock()` call will force lock to be released after given seconds.
+
+```python
+async def first():
+    async with etcd.with_lock('foolock', ttl=5) as communicator:
+        await asyncio.sleep(10)
+
+await first()
+
+# on other file
+
+import time
+
+async def second():
+    start = time.time()
+    async with etcd.with_lock('foolock', ttl=5) as communicator:
+        print(f'acquired lock after {time.time() - start} seconds')
+
+await second()  # acquired lock after 4.756163120269775 seconds
+```
+
 ## Watch
 
 You can watch changes on key with `EtcdCommunicator.watch(key)`.
@@ -196,8 +217,18 @@ async with etcd.connect() with communicator:
     print(values)  # ['foo', 'baz']
 ```
 
-# Compiling Protobuf
+# Contributing
+
+## Compiling Protobuf
 
 ```bash
 $ scripts/compile_protobuf.py <target Etcd version>
+```
+
+## Generating documentation
+
+```bash
+$ cd docs
+$ make markdown
+$ mv _build/markdown/index.mf references.md
 ```
