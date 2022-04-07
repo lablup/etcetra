@@ -112,7 +112,7 @@ class EtcdClient:
         """
         return EtcdConnectionManager(self._build_connector_protocol())
 
-    def with_lock(self, lock_name: str, timeout: Optional[float] = None):
+    def with_lock(self, lock_name: str, timeout: Optional[float] = None, ttl: Optional[int] = None):
         """
         Async context manager which establishes connection and then
         immediately tries to acquire lock with given lock name.
@@ -125,7 +125,10 @@ class EtcdClient:
         timeout
             Number of seconds to wait until lock is acquired. Defaults to `None`.
             If value is `None`, `with_lock` will wait forever until lock is acquired.
-
+        ttl
+            If not None, sets a TTL to granted Lock.
+            The lock will be automatically released after this amount of seconds elapses.
+            Defaults to `None`.
         Returns
         -------
         communicator: EtcdCommunicator
@@ -136,7 +139,7 @@ class EtcdClient:
         asyncio.TimeoutError
             When timeout expires.
         """
-        lock_opt = EtcdLockOption(lock_name, timeout=timeout)
+        lock_opt = EtcdLockOption(lock_name, timeout=timeout, ttl=ttl)
         return EtcdConnectionManager(self._build_connector_protocol(), lock_option=lock_opt)
 
 
@@ -162,7 +165,7 @@ class EtcdConnectionManager:
             self._communicator = await self.communicator_builder.meth()
         if lock_opt := self._lock_option:
             self._lock_key = await self._communicator._lock(
-                lock_opt.lock_name, timeout_seconds=lock_opt.timeout)
+                lock_opt.lock_name, timeout_seconds=lock_opt.timeout, ttl=lock_opt.ttl)
         return self._communicator
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -937,9 +940,75 @@ class EtcdCommunicator:
         )
         return [x.key.decode(encoding) for x in response.kvs]
 
+    async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
+        """
+        Creates a lease which expires if the server does not receive a keepAlive
+        within a given time to live period. All keys attached to the lease
+        will be expired and deleted if the lease expires.
+        Each expired key generates a delete event in the event history.
+
+        Parameters
+        ---------
+        ttl
+            Advisory time-to-live in seconds.
+        id
+            Requested ID for the lease. If ID is set to None, the lessor chooses an ID.
+
+        Returns
+        -------
+        id: int
+            Lease ID for the granted lease.
+        """
+        stub = rpc_pb2_grpc.LeaseStub(self.channel)
+        response = await stub.LeaseGrant(rpc_pb2.LeaseGrantRequest(ID=id or 0, TTL=ttl))
+        return response.ID
+
+    async def revoke_lease(self, id: int):
+        """
+        Revokes a lease. All keys attached to the lease will expire and be deleted.
+
+        Parameters
+        ---------
+        id
+            Lease ID to revoke. When the ID is revoked, all associated keys will be deleted.
+        """
+        stub = rpc_pb2_grpc.LeaseStub(self.channel)
+        await stub.LeaseRevoke(rpc_pb2.LeaseRevokeRequest(ID=id))
+
+    async def lease_keepalive(self, id: int, interval: float) -> asyncio.Task:
+        """
+        Creates asyncio Task which sends Keepalive request to given lease ID.
+
+        Parameters
+        ---------
+        id
+            Lease ID to send Keepalive request.
+        interval
+            Interval to send Keepalive request.
+
+        Returns
+        -------
+        task: asyncio.Task
+        """
+        async def _task_worker():
+            stub = rpc_pb2_grpc.LeaseStub(self.channel)
+
+            request = rpc_pb2.LeaseKeepAliveRequest(ID=id)
+
+            stream = stub.LeaseKeepAlive()
+            await stream.write(request)
+
+            while True:
+                await asyncio.sleep(interval)
+                await stream.read()
+                request = rpc_pb2.LeaseKeepAliveRequest(ID=id)
+                await stream.write(request)
+
+        return asyncio.create_task(_task_worker())
+
     async def _lock(
         self, name: str,
-        lease: Optional[int] = None, encoding: Optional[str] = None,
+        ttl: Optional[int] = None, encoding: Optional[str] = None,
         timeout_seconds: Optional[float] = None,
     ) -> str:
         """
@@ -953,11 +1022,15 @@ class EtcdCommunicator:
         if encoding is None:
             encoding = self.encoding
         stub = v3lock_pb2_grpc.LockStub(self.channel)
+        if ttl is not None:
+            lease = await self.grant_lease(ttl)
+        else:
+            lease = None
         async with timeout(timeout_seconds):
             response = await stub.Lock(
                 v3lock_pb2.LockRequest(
                     name=name.encode(encoding),
-                    lease=str(lease) if lease is not None else None,
+                    lease=lease,
                 ),
             )
             return response.key.decode(encoding)
