@@ -1519,4 +1519,6 @@ class EtcdLockManager:
                     key=self._lock_id.encode(self.encoding),
                 ),
             )
+        self._lock_id = None
+        self._lease_id = None
         return False
