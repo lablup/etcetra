@@ -1512,10 +1512,11 @@ class EtcdLockManager:
         if self._lease_id is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
             await communicator.revoke_lease(self._lease_id)
-        stub = v3lock_pb2_grpc.LockStub(self.channel)
-        await stub.Unlock(
-            v3lock_pb2.UnlockRequest(
-                key=self._lock_id.encode(self.encoding),
-            ),
-        )
+        else:
+            stub = v3lock_pb2_grpc.LockStub(self.channel)
+            await stub.Unlock(
+                v3lock_pb2.UnlockRequest(
+                    key=self._lock_id.encode(self.encoding),
+                ),
+            )
         return False
