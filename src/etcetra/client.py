@@ -33,6 +33,7 @@ __all__ = (
     'EtcdClient',
     'EtcdCommunicator',
     'EtcdConnectionManager',
+    'EtcdLockManager',
     'EtcdTransactionAction',
 )
 T = TypeVar('T', covariant=True)
@@ -177,7 +178,7 @@ class EtcdConnectionManager:
         if self._communicator is None:
             raise ValueError('__aexit__ called before __aenter__ called')
         if self._lock is not None:
-            await self._lock.__aexit__()
+            await self._lock.__aexit__(exc_type, exc, tb)
         await self._communicator.channel.close()
         return False
 
