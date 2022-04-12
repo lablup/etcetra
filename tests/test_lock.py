@@ -1,6 +1,7 @@
 import asyncio
 from queue import Queue
 import time
+import traceback
 import pytest
 
 from etcetra import EtcdClient
@@ -50,19 +51,32 @@ async def test_lock_ttl(etcd: EtcdClient):
     queue: Queue[float] = Queue()
 
     async def _lock_task_1():
-        async with etcd.with_lock('/test/ttllocka', ttl=3):
+        try:
+            conmgr = etcd.with_lock('/test/ttllocka', ttl=3)
+            await conmgr.__aenter__()
             await asyncio.sleep(10)
+        except Exception:
+            traceback.print_exc()
+            raise
+        finally:
+            conmgr._lock._keepalive_task.cancel()
 
     async def _lock_task_2(queue: Queue[float]):
-        start = time.monotonic()
-        await asyncio.sleep(0.1)
-        async with etcd.with_lock('/test/ttllocka'):
-            queue.put(time.monotonic() - start)
+        try:
+            start = time.monotonic()
+            async with etcd.with_lock('/test/ttllocka', ttl=60):
+                queue.put(time.monotonic() - start)
+        except Exception:
+            traceback.print_exc()
+            raise
 
     task_1 = asyncio.create_task(_lock_task_1())
-    task_2 = asyncio.create_task(_lock_task_2(queue))
-
     await asyncio.sleep(5)
+    task_1.cancel()
+    task_2 = asyncio.create_task(_lock_task_2(queue))
+    await asyncio.sleep(5)
+
+    assert not queue.empty()
     assert 2.5 < queue.get() < 3.5
     assert queue.empty()
 
