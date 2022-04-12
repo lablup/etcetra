@@ -175,8 +175,7 @@ class EtcdConnectionManager:
         return self._communicator
 
     async def __aexit__(self, exc_type, exc, tb) -> Optional[bool]:
-        if self._communicator is None:
-            raise ValueError('__aexit__ called before __aenter__ called')
+        assert self._communicator is not None
         if self._lock is not None:
             await self._lock.__aexit__(exc_type, exc, tb)
         await self._communicator.channel.close()
@@ -981,7 +980,7 @@ class EtcdCommunicator:
         stub = rpc_pb2_grpc.LeaseStub(self.channel)
         await stub.LeaseRevoke(rpc_pb2.LeaseRevokeRequest(ID=id))
 
-    async def lease_keepalive(self, id: int, interval: float) -> asyncio.Task:
+    def lease_keepalive(self, id: int, interval: float) -> asyncio.Task:
         """
         Creates asyncio Task which sends Keepalive request to given lease ID.
 
@@ -1491,7 +1490,7 @@ class EtcdLockManager:
         if self.ttl is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
             self._lease_id = await communicator.grant_lease(self.ttl)
-            self._keepalive_task = await communicator.lease_keepalive(self._lease_id, self.ttl / 10)
+            self._keepalive_task = communicator.lease_keepalive(self._lease_id, self.ttl / 10)
         else:
             self._lease_id = None
         try:
@@ -1505,7 +1504,12 @@ class EtcdLockManager:
             self._lock_id = response.key.decode(self.encoding)
         except asyncio.TimeoutError:
             if self._lease_id is not None:
-                await communicator.revoke_lease(self._lease_id)
+                try:
+                    await communicator.revoke_lease(self._lease_id)
+                except grpc.aio.AioRpcError as e:
+                    if e.code() != grpc.StatusCode.NOT_FOUND:
+                        raise e
+            if self._keepalive_task is not None:
                 self._keepalive_task.cancel()
             raise
 
@@ -1515,8 +1519,7 @@ class EtcdLockManager:
         The next Lock caller waiting for the lock will then be woken up and given ownership of the lock.
         In normal cases `EtcdClient.with_lock()` will automatically handle lock/unlock process.
         """
-        if self._lock_id is None:
-            raise ValueError('__aexit__() called before __aenter__() completed')
+        assert self._lock_id is not None
 
         if self._lease_id is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
@@ -1525,7 +1528,8 @@ class EtcdLockManager:
             except grpc.aio.AioRpcError as e:
                 if e.code() != grpc.StatusCode.NOT_FOUND:
                     raise e
-            self._keepalive_task.cancel()
+            if self._keepalive_task is not None:
+                self._keepalive_task.cancel()
         else:
             stub = v3lock_pb2_grpc.LockStub(self.channel)
             await stub.Unlock(
