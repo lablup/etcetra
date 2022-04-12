@@ -33,6 +33,7 @@ __all__ = (
     'EtcdClient',
     'EtcdCommunicator',
     'EtcdConnectionManager',
+    'EtcdLockManager',
     'EtcdTransactionAction',
 )
 T = TypeVar('T', covariant=True)
@@ -140,39 +141,43 @@ class EtcdClient:
             When timeout expires.
         """
         lock_opt = EtcdLockOption(lock_name, timeout=timeout, ttl=ttl)
-        return EtcdConnectionManager(self._build_connector_protocol(), lock_option=lock_opt)
+        return EtcdConnectionManager(
+            self._build_connector_protocol(), encoding=self.encoding, lock_option=lock_opt)
 
 
 class EtcdConnectionManager:
     communicator_builder: Proto[EtcdCommunicator]
+    encoding: str
 
     _lock_option: Optional[EtcdLockOption]
-    _lock_key: Optional[str]
+    _lock: Optional[EtcdLockManager]
     _communicator: Optional[EtcdCommunicator]
 
     def __init__(
         self,
         communicator_builder: Proto[EtcdCommunicator],
+        encoding: str = 'utf-8',
         lock_option: Optional[EtcdLockOption] = None,
     ) -> None:
         self.communicator_builder = communicator_builder
+        self.encoding = encoding
         self._lock_option = lock_option
-        self._lock_key = None
+        self._lock = None
         self._communicator = None
 
     async def __aenter__(self) -> EtcdCommunicator:
-        if self._communicator is None:
-            self._communicator = await self.communicator_builder.meth()
+        self._communicator = await self.communicator_builder.meth()
         if lock_opt := self._lock_option:
-            self._lock_key = await self._communicator._lock(
-                lock_opt.lock_name, timeout_seconds=lock_opt.timeout, ttl=lock_opt.ttl)
+            self._lock = EtcdLockManager(
+                lock_opt.lock_name, self._communicator.channel, encoding=self.encoding,
+                ttl=lock_opt.ttl, timeout_seconds=lock_opt.timeout)
+            await self._lock.__aenter__()
         return self._communicator
 
-    async def __aexit__(self, exc_type, exc, tb):
-        if self._communicator is None:
-            raise ValueError('__aexit__ called before __aenter__ called')
-        if self._lock_option is not None and self._lock_key is not None:
-            await self._communicator._unlock(self._lock_key)
+    async def __aexit__(self, exc_type, exc, tb) -> Optional[bool]:
+        assert self._communicator is not None
+        if self._lock is not None:
+            await self._lock.__aexit__(exc_type, exc, tb)
         await self._communicator.channel.close()
         return False
 
@@ -975,7 +980,7 @@ class EtcdCommunicator:
         stub = rpc_pb2_grpc.LeaseStub(self.channel)
         await stub.LeaseRevoke(rpc_pb2.LeaseRevokeRequest(ID=id))
 
-    async def lease_keepalive(self, id: int, interval: float) -> asyncio.Task:
+    def create_lease_keepalive_task(self, id: int, interval: float) -> asyncio.Task:
         """
         Creates asyncio Task which sends Keepalive request to given lease ID.
 
@@ -1005,50 +1010,6 @@ class EtcdCommunicator:
                 await stream.write(request)
 
         return asyncio.create_task(_task_worker())
-
-    async def _lock(
-        self, name: str,
-        ttl: Optional[int] = None, encoding: Optional[str] = None,
-        timeout_seconds: Optional[float] = None,
-    ) -> str:
-        """
-        Acquires a distributed shared lock on a given named lock.
-        On success, it will return a unique key that exists so long as the lock is held by the caller.
-        This key can be used in conjunction with transactions to safely ensure updates to etcd
-        only occur while holding lock ownership.
-        The lock is held until Unlock is called on the key or the lease associate with the owner expires.
-        In normal cases `EtcdClient.with_lock()` will automatically handle lock/unlock process.
-        """
-        if encoding is None:
-            encoding = self.encoding
-        stub = v3lock_pb2_grpc.LockStub(self.channel)
-        if ttl is not None:
-            lease = await self.grant_lease(ttl)
-        else:
-            lease = None
-        async with timeout(timeout_seconds):
-            response = await stub.Lock(
-                v3lock_pb2.LockRequest(
-                    name=name.encode(encoding),
-                    lease=lease,
-                ),
-            )
-            return response.key.decode(encoding)
-
-    async def _unlock(self, key: str, encoding: Optional[str] = None):
-        """
-        Takes a key returned by Lock and releases the hold on lock.
-        The next Lock caller waiting for the lock will then be woken up and given ownership of the lock.
-        In normal cases `EtcdClient.with_lock()` will automatically handle lock/unlock process.
-        """
-        if encoding is None:
-            encoding = self.encoding
-        stub = v3lock_pb2_grpc.LockStub(self.channel)
-        await stub.Unlock(
-            v3lock_pb2.UnlockRequest(
-                key=key.encode(encoding),
-            ),
-        )
 
     async def _watch_impl(
         self, key: bytes, encoding: str,
@@ -1485,3 +1446,98 @@ class EtcdTransactionAction:
         if encoding is None:
             encoding = self.encoding
         self.requests.append(EtcdRequestGenerator.delete(key, encoding=encoding))
+
+
+class EtcdLockManager:
+    name: str
+    channel: Channel
+    encoding: str
+    ttl: Optional[int]
+    timeout_seconds: Optional[float]
+
+    _lease_id: Optional[int]
+    _lock_id: Optional[str]
+    _keepalive_task: Optional[asyncio.Task]
+
+    def __init__(
+        self,
+        name: str,
+        channel: Channel,
+        encoding: str = 'utf-8',
+        ttl: Optional[int] = None,
+        timeout_seconds: Optional[float] = None,
+    ) -> None:
+        self.name = name
+        self.channel = channel
+        self.encoding = encoding
+        self.ttl = ttl
+        self.timeout_seconds = timeout_seconds
+
+        self._lease_id = None
+        self._lock_id = None
+        self._keepalive_task = None
+
+    async def __aenter__(self) -> None:
+        """
+        Acquires a distributed shared lock on a given named lock.
+        On success, it will return a unique key that exists so long as the lock is held by the caller.
+        This key can be used in conjunction with transactions to safely ensure updates to etcd
+        only occur while holding lock ownership.
+        The lock is held until Unlock is called on the key or the lease associate with the owner expires.
+        In normal cases `EtcdClient.with_lock()` will automatically handle lock/unlock process.
+        """
+        stub = v3lock_pb2_grpc.LockStub(self.channel)
+        if self.ttl is not None:
+            communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
+            self._lease_id = await communicator.grant_lease(self.ttl)
+            self._keepalive_task = communicator.create_lease_keepalive_task(
+                self._lease_id, self.ttl / 10)
+        else:
+            self._lease_id = None
+        try:
+            async with timeout(self.timeout_seconds):
+                response = await stub.Lock(
+                    v3lock_pb2.LockRequest(
+                        name=self.name.encode(self.encoding),
+                        lease=self._lease_id,
+                    ),
+                )
+            self._lock_id = response.key.decode(self.encoding)
+        except asyncio.TimeoutError:
+            if self._lease_id is not None:
+                try:
+                    await communicator.revoke_lease(self._lease_id)
+                except grpc.aio.AioRpcError as e:
+                    if e.code() != grpc.StatusCode.NOT_FOUND:
+                        raise e
+            if self._keepalive_task is not None:
+                self._keepalive_task.cancel()
+            raise
+
+    async def __aexit__(self, exc_type, exc, tb) -> Optional[bool]:
+        """
+        Releases the hold on lock.
+        The next Lock caller waiting for the lock will then be woken up and given ownership of the lock.
+        In normal cases `EtcdClient.with_lock()` will automatically handle lock/unlock process.
+        """
+        assert self._lock_id is not None
+
+        if self._lease_id is not None:
+            communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
+            try:
+                await communicator.revoke_lease(self._lease_id)
+            except grpc.aio.AioRpcError as e:
+                if e.code() != grpc.StatusCode.NOT_FOUND:
+                    raise e
+            if self._keepalive_task is not None:
+                self._keepalive_task.cancel()
+        else:
+            stub = v3lock_pb2_grpc.LockStub(self.channel)
+            await stub.Unlock(
+                v3lock_pb2.UnlockRequest(
+                    key=self._lock_id.encode(self.encoding),
+                ),
+            )
+        self._lock_id = None
+        self._lease_id = None
+        return False
