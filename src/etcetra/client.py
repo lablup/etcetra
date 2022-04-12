@@ -1458,6 +1458,7 @@ class EtcdLockManager:
 
     _lease_id: Optional[int]
     _lock_id: Optional[str]
+    _keepalive_task: Optional[asyncio.Task]
 
     def __init__(
         self,
@@ -1475,6 +1476,7 @@ class EtcdLockManager:
 
         self._lease_id = None
         self._lock_id = None
+        self._keepalive_task = None
 
     async def __aenter__(self) -> None:
         """
@@ -1489,16 +1491,23 @@ class EtcdLockManager:
         if self.ttl is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
             self._lease_id = await communicator.grant_lease(self.ttl)
+            self._keepalive_task = await communicator.lease_keepalive(self._lease_id, self.ttl / 10)
         else:
             self._lease_id = None
-        async with timeout(self.timeout_seconds):
-            response = await stub.Lock(
-                v3lock_pb2.LockRequest(
-                    name=self.name.encode(self.encoding),
-                    lease=self._lease_id,
-                ),
-            )
+        try:
+            async with timeout(self.timeout_seconds):
+                response = await stub.Lock(
+                    v3lock_pb2.LockRequest(
+                        name=self.name.encode(self.encoding),
+                        lease=self._lease_id,
+                    ),
+                )
             self._lock_id = response.key.decode(self.encoding)
+        except asyncio.TimeoutError:
+            if self._lease_id is not None:
+                await communicator.revoke_lease(self._lease_id)
+                self._keepalive_task.cancel()
+            raise
 
     async def __aexit__(self, exc_type, exc, tb) -> Optional[bool]:
         """
@@ -1511,7 +1520,12 @@ class EtcdLockManager:
 
         if self._lease_id is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
-            await communicator.revoke_lease(self._lease_id)
+            try:
+                await communicator.revoke_lease(self._lease_id)
+            except grpc.aio.AioRpcError as e:
+                if e.code() != grpc.StatusCode.NOT_FOUND:
+                    raise e
+            self._keepalive_task.cancel()
         else:
             stub = v3lock_pb2_grpc.LockStub(self.channel)
             await stub.Unlock(
