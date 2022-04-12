@@ -980,7 +980,7 @@ class EtcdCommunicator:
         stub = rpc_pb2_grpc.LeaseStub(self.channel)
         await stub.LeaseRevoke(rpc_pb2.LeaseRevokeRequest(ID=id))
 
-    def lease_keepalive(self, id: int, interval: float) -> asyncio.Task:
+    def create_lease_keepalive_task(self, id: int, interval: float) -> asyncio.Task:
         """
         Creates asyncio Task which sends Keepalive request to given lease ID.
 
@@ -1490,7 +1490,7 @@ class EtcdLockManager:
         if self.ttl is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
             self._lease_id = await communicator.grant_lease(self.ttl)
-            self._keepalive_task = communicator.lease_keepalive(self._lease_id, self.ttl / 10)
+            self._keepalive_task = communicator.create_lease_keepalive_task(self._lease_id, self.ttl / 10)
         else:
             self._lease_id = None
         try:
