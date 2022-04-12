@@ -1490,7 +1490,8 @@ class EtcdLockManager:
         if self.ttl is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
             self._lease_id = await communicator.grant_lease(self.ttl)
-            self._keepalive_task = communicator.create_lease_keepalive_task(self._lease_id, self.ttl / 10)
+            self._keepalive_task = communicator.create_lease_keepalive_task(
+                self._lease_id, self.ttl / 10)
         else:
             self._lease_id = None
         try:
