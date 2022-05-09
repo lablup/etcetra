@@ -14,12 +14,22 @@ from typing import (
     Optional,
     OrderedDict,
     Protocol,
+    Tuple,
     TypeVar,
+    Union,
 )
 from async_timeout import timeout
 
 import grpc
-from grpc.aio import Channel
+from grpc.aio import (
+    Channel, ClientCallDetails,
+    UnaryUnaryCall, UnaryStreamCall,
+    StreamUnaryCall, StreamStreamCall,
+    UnaryUnaryClientInterceptor, UnaryStreamClientInterceptor,
+    StreamUnaryClientInterceptor, StreamStreamClientInterceptor,
+    Metadata,
+)
+from grpc.aio._typing import RequestType, RequestIterableType, ResponseType, ResponseIterableType
 
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
@@ -42,6 +52,68 @@ T = TypeVar('T', covariant=True)
 class Proto(Protocol[T]):
     async def meth(self) -> T:
         pass
+
+
+class EtcdAuthInterceptor:
+    token: str
+    def __init__(self, token):
+        self.token = token
+
+    def build_details(self, orig_details: ClientCallDetails) -> ClientCallDetails:
+        if _meta := orig_details.metadata:
+            _meta.add('token', self.token)
+        else:
+            _meta = Metadata(('token', self.token))
+        return ClientCallDetails(
+            orig_details.method,
+            orig_details.timeout,
+            _meta,
+            orig_details.credentials,
+            orig_details.wait_for_ready,
+        )
+
+class EtcdAuthUnaryUnaryInterceptor(EtcdAuthInterceptor, UnaryUnaryClientInterceptor):
+    async def intercept_unary_unary(
+        self,
+        continuation: Callable[[grpc.ClientCallDetails, RequestType], UnaryUnaryCall],
+        client_call_details: ClientCallDetails,
+        request: RequestType
+    ) -> Union[UnaryUnaryCall, ResponseType]:
+        return await continuation(
+            self.build_details(client_call_details), request)
+
+
+class EtcdAuthUnaryStreamInterceptor(EtcdAuthInterceptor, UnaryStreamClientInterceptor):
+    async def intercept_unary_stream(
+        self,
+        continuation: Callable[[grpc.ClientCallDetails, RequestType], UnaryStreamCall],
+        client_call_details: ClientCallDetails,
+        request: RequestType
+    ) -> Union[UnaryStreamCall, ResponseIterableType]:
+        return await continuation(
+            self.build_details(client_call_details), request)
+
+
+class EtcdAuthStreamUnaryInterceptor(EtcdAuthInterceptor, StreamUnaryClientInterceptor):
+    async def intercept_stream_unary(
+        self,
+        continuation: Callable[[grpc.ClientCallDetails, RequestType], StreamUnaryCall],
+        client_call_details: ClientCallDetails,
+        request_iterator: RequestIterableType,
+    ) -> Union[StreamUnaryCall, ResponseType]:
+        return await continuation(
+            self.build_details(client_call_details), request_iterator)
+
+
+class EtcdAuthStreamStreamInterceptor(EtcdAuthInterceptor, StreamStreamClientInterceptor):
+    async def intercept_stream_stream(
+        self,
+        continuation: Callable[[grpc.ClientCallDetails, RequestType], StreamStreamCall],
+        client_call_details: ClientCallDetails,
+        request_iterator: RequestIterableType,
+    ) -> Union[StreamStreamCall, ResponseIterableType]:
+        return await continuation(
+            self.build_details(client_call_details), request_iterator)
 
 
 class EtcdClient:
@@ -83,22 +155,35 @@ class EtcdClient:
         self.secure = secure
         self.encoding = encoding
 
-    def _build_channel(self):
+    def _build_channel(self, token: Optional[str] = None):
+        chan_cred: Optional[grpc.ChannelCredentials] = None
         if self.secure:
-            chan = grpc.aio.secure_channel(str(self.addr))
+            chan_cred = grpc.ssl_channel_credentials()
+        interceptors: Optional[Tuple[EtcdAuthInterceptor]] = None
+        if token is not None:
+            interceptors = (
+                EtcdAuthUnaryUnaryInterceptor(token),
+                EtcdAuthUnaryStreamInterceptor(token),
+                EtcdAuthStreamUnaryInterceptor(token),
+                EtcdAuthStreamStreamInterceptor(token),
+            )
+
+        if chan_cred is not None:
+            return grpc.aio.secure_channel(
+                str(self.addr), chan_cred, interceptors=interceptors)
         else:
-            chan = grpc.aio.insecure_channel(str(self.addr))
-        return chan
+            return grpc.aio.insecure_channel(str(self.addr), interceptors=interceptors)
 
     def _build_connector_protocol(self) -> Proto[EtcdCommunicator]:
-        chan = self._build_channel()
+        s = self
         _creds = self._creds
 
         class P(Proto):
             async def meth(self) -> EtcdCommunicator:
-                communicator = EtcdCommunicator(chan)
+                communicator = EtcdCommunicator(s._build_channel())
                 if creds := _creds:
-                    await communicator._authenticate(creds.username, creds.password)
+                    token = await communicator._authenticate(creds.username, creds.password)
+                    communicator = EtcdCommunicator(s._build_channel(token))
                 return communicator
         return P()
 
@@ -412,15 +497,16 @@ class EtcdCommunicator:
         self.encoding = encoding
         self.channel = channel
 
-    async def _authenticate(self, username: str, password: str):
+    async def _authenticate(self, username: str, password: str) -> str:
         """
         Tries to authenticate to Etcd server with given credentials.
         In most cases, `EtcdClient` will automatically handle authentication process.
         """
         stub = rpc_pb2_grpc.AuthStub(self.channel)
-        return await stub.Authenticate(
+        response = await stub.Authenticate(
             rpc_pb2.AuthenticateRequest(name=username, password=password),
         )
+        return response.token
 
     async def put(
         self, key: str, value: Optional[str],
