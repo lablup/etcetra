@@ -56,6 +56,7 @@ class Proto(Protocol[T]):
 
 class EtcdAuthInterceptor:
     token: str
+
     def __init__(self, token):
         self.token = token
 
@@ -72,12 +73,13 @@ class EtcdAuthInterceptor:
             orig_details.wait_for_ready,
         )
 
+
 class EtcdAuthUnaryUnaryInterceptor(EtcdAuthInterceptor, UnaryUnaryClientInterceptor):
     async def intercept_unary_unary(
         self,
         continuation: Callable[[grpc.ClientCallDetails, RequestType], UnaryUnaryCall],
         client_call_details: ClientCallDetails,
-        request: RequestType
+        request: RequestType,
     ) -> Union[UnaryUnaryCall, ResponseType]:
         return await continuation(
             self.build_details(client_call_details), request)
@@ -88,7 +90,7 @@ class EtcdAuthUnaryStreamInterceptor(EtcdAuthInterceptor, UnaryStreamClientInter
         self,
         continuation: Callable[[grpc.ClientCallDetails, RequestType], UnaryStreamCall],
         client_call_details: ClientCallDetails,
-        request: RequestType
+        request: RequestType,
     ) -> Union[UnaryStreamCall, ResponseIterableType]:
         return await continuation(
             self.build_details(client_call_details), request)
@@ -159,7 +161,7 @@ class EtcdClient:
         chan_cred: Optional[grpc.ChannelCredentials] = None
         if self.secure:
             chan_cred = grpc.ssl_channel_credentials()
-        interceptors: Optional[Tuple[EtcdAuthInterceptor]] = None
+        interceptors: Optional[Tuple] = None
         if token is not None:
             interceptors = (
                 EtcdAuthUnaryUnaryInterceptor(token),
