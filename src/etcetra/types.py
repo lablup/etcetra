@@ -1,8 +1,9 @@
 from __future__ import annotations
+from collections import namedtuple
 
 from dataclasses import dataclass, field
 import enum
-from typing import Any, List, Mapping, NamedTuple, Optional, Union, TYPE_CHECKING
+from typing import Any, List, Mapping, Optional, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
 
@@ -76,7 +77,7 @@ DeleteRangeRequestType = rpc_pb2.DeleteRangeRequest
 TransactionRequest = Union[PutRequestType, RangeRequestType, DeleteRangeRequestType]  # type: ignore
 NoneType = type(None)
 TxnReturnValues: TypeAlias = List[Union[Mapping[str, str], NoneType]]
-TxnReturnType = NamedTuple('TxnReturnType', [('values', TxnReturnValues), ('success', bool)])
+TxnReturnType = namedtuple('TxnReturnType', ['values', 'success'])
 
 
 @dataclass

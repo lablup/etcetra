@@ -204,7 +204,7 @@ class EtcdClient:
         self,
         lock_name: str,
         timeout: Optional[float] = None,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
     ) -> EtcdConnectionManager:
         """
         Async context manager which establishes connection and then
@@ -489,7 +489,7 @@ class EtcdCommunicator:
     def __init__(
         self,
         channel: Channel,
-        encoding: str = 'utf-8'
+        encoding: str = 'utf-8',
     ) -> None:
         """
         Creates `EtcdCommunicator` instance.
@@ -1425,7 +1425,7 @@ class EtcdTransaction:
         self,
         compares: List[rpc_pb2.Compare],  # type: ignore
         encoding: Optional[str] = None,
-    ) -> Tuple[list[Mapping[str, str] | None], bool]:
+    ) -> TxnReturnType:
         """
         Executes Txn and returns results.
         """
@@ -1461,7 +1461,7 @@ class EtcdTransaction:
                 ret.append(None)  # TODO: Handle delete response
             else:
                 ret.append(None)
-        return ret, result.succeeded
+        return TxnReturnType(ret, result.succeeded)
 
 
 class EtcdTransactionAction:
