@@ -1034,7 +1034,12 @@ class EtcdCommunicator:
         )
         return [x.key.decode(encoding) for x in response.kvs]
 
-    async def campaign_election(self, name: bytes, lease_id: int, value: Optional[bytes] = None) -> v3election_pb2.LeaderKey:
+    async def campaign_election(
+        self,
+        name: bytes,
+        lease_id: int,
+        value: Optional[bytes] = None,
+    ) -> v3election_pb2.LeaderKey:
         """
         Campaign waits to acquire leadership in an election,
         returning a LeaderKey representing the leadership if successful.
@@ -1059,7 +1064,8 @@ class EtcdCommunicator:
             Leader describes the resources used for holding leadereship of the election.
         """
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
-        response = await stub.Campaign(v3election_pb2.CampaignRequest(name=name, lease=lease_id, value=value))
+        request = v3election_pb2.CampaignRequest(name=name, lease=lease_id, value=value)
+        response = await stub.Campaign(request)
         return response.leader
 
     async def resign_election(self, leader: v3election_pb2.LeaderKey) -> None:
