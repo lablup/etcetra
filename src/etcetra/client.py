@@ -31,13 +31,15 @@ from grpc.aio import (
 )
 from grpc.aio._typing import RequestType, RequestIterableType, ResponseType, ResponseIterableType
 
+from .grpc_api import kv_pb2
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
+from .grpc_api import v3election_pb2, v3election_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
     DeleteRangeRequestType, EtcdCredential, EtcdLockOption, HostPortPair,
-    PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
-    TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
-    WatchEvent, WatchEventType,
+    Leader, PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget,
+    RangeRequestType, TransactionRequest, TxnReturnType, TxnReturnValues,
+    WatchCreateRequestFilterType, WatchEvent, WatchEventType,
 )
 __all__ = (
     'EtcdClient',
@@ -1032,6 +1034,110 @@ class EtcdCommunicator:
             ),
         )
         return [x.key.decode(encoding) for x in response.kvs]
+
+    async def campaign_election(self, name: bytes, lease_id: int, value: Optional[bytes] = None) -> v3election_pb2.LeaderKey:
+        """
+        Campaign waits to acquire leadership in an election,
+        returning a LeaderKey representing the leadership if successful.
+        The LeaderKey can then be used to issue new values on the election,
+        transactionally guard API requests on leadership still being held,
+        and resign from the election.
+
+        Parameters
+        ---------
+        name
+            Name is the election’s identifier for the campaign.
+        lease_id
+            LeaseID is the ID of the lease attached to leadership of the election.
+            If the lease expires or is revoked before resigning leadership,
+            then the leadership is transferred to the next campaigner, if any.
+        value:
+            Value is the initial proclaimed value set when the campaigner wins the election.
+
+        Returns
+        -------
+        leader: etcetra.grpc_api.v3election_pb2.LeaderKey
+            Leader describes the resources used for holding leadereship of the election.
+        """
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        response = await stub.Campaign(v3election_pb2.CampaignRequest(name=name, lease=lease_id, value=value))
+        return response.leader
+
+    async def resign_election(self, leader: v3election_pb2.LeaderKey) -> None:
+        """
+        Resign releases election leadership so other campaigners may acquire leadership on the election.
+
+        Parameters
+        ---------
+        leader
+            Leader is the leadership to relinquish by resignation.
+        """
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        await stub.Resign(v3election_pb2.ResignRequest(leader=leader))
+
+    async def proclaim_election(self, leader: v3election_pb2.LeaderKey, value: bytes) -> None:
+        """
+        Proclaim updates the leader’s posted value with a new value.
+
+        Parameters
+        ---------
+        leader
+            Leader is the leadership hold on the election.
+        value
+            Value is an update meant to overwrite the leader’s current value.
+        """
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader, value=value))
+
+    async def get_election(self, name: bytes) -> Leader:
+        """
+        Returns the current election proclamation, if any.
+
+        Parameters
+        ---------
+        name
+            Name is the election identifier for the leadership information.
+
+        Returns
+        -------
+        kv
+            KV is the key-value pair representing the latest leader update
+        """
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        response = await stub.Leader(v3election_pb2.LeaderRequest(name=name))
+        return Leader(
+            key=response.kv.key,
+            create_revision=response.kv.create_revision,
+            mod_revision=response.kv.mod_revision,
+            version=response.kv.version,
+            value=response.kv.value,
+            lease=response.kv.lease,
+        )
+
+    async def observe_election(self, name: bytes) -> AsyncIterator[Leader]:
+        """
+        Observe streams election proclamations in-order as made by the election’s elected leaders.
+
+        Parameters
+        ---------
+        name
+            Name is the election identifier for the leadership information.
+
+        Returns
+        -------
+        event: AsyncIterator[Leader]
+            A `Leader` object containing event information.
+        """
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        async for response in stub.Observe(v3election_pb2.LeaderRequest(name=name)):
+            yield Leader(
+                key=response.kv.key,
+                create_revision=response.kv.create_revision,
+                mod_revision=response.kv.mod_revision,
+                version=response.kv.version,
+                value=response.kv.value,
+                lease=response.kv.lease,
+            )
 
     async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
         """

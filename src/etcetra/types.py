@@ -188,3 +188,13 @@ class EtcdLockOption:
     lock_name: str
     timeout: Optional[float]
     ttl: Optional[int]
+
+
+@dataclass
+class Leader:
+    key: bytes
+    create_revision: int
+    mod_revision: int
+    version: int
+    value: bytes
+    lease: int
