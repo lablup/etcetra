@@ -3,7 +3,7 @@
 Pure python asyncio Etcd client.
 
 
-### _class_ etcetra.client.EtcdClient(addr: etcetra.types.HostPortPair, credentials: Optional[etcetra.types.EtcdCredential] = None, secure: bool = False, encoding: str = 'utf-8')
+### _class_ etcetra.client.EtcdClient(addr: HostPortPair, credentials: Optional[EtcdCredential] = None, secure: bool = False, encoding: str = 'utf-8')
 Wrapper class of underlying actual Etcd API implementations (KV, Watch, Txn, …).
 In most cases, user can perform most of the jobs by creating EtcdClient object.
 
@@ -64,8 +64,69 @@ Acquired lock will automatically released when user exits with context.
 
 
 
-### _class_ etcetra.client.EtcdCommunicator(channel: grpc.aio._base_channel.Channel, encoding: str = 'utf-8')
+### _class_ etcetra.client.EtcdCommunicator(channel: Channel, encoding: str = 'utf-8')
 Performs actual API calls to Etcd cluster and returns result.
+
+
+#### _async_ campaign_election(name: bytes, lease_id: int, value: Optional[bytes] = None)
+Campaign waits to acquire leadership in an election,
+returning a LeaderKey representing the leadership if successful.
+The LeaderKey can then be used to issue new values on the election,
+transactionally guard API requests on leadership still being held,
+and resign from the election.
+
+
+* **Parameters**
+
+    
+    * **name** – Name is the election’s identifier for the campaign.
+
+
+    * **lease_id** – LeaseID is the ID of the lease attached to leadership of the election.
+    If the lease expires or is revoked before resigning leadership,
+    then the leadership is transferred to the next campaigner, if any.
+
+
+    * **value** – Value is the initial proclaimed value set when the campaigner wins the election.
+
+
+
+* **Returns**
+
+    **leader** – Leader describes the resources used for holding leadereship of the election.
+
+
+
+* **Return type**
+
+    etcetra.grpc_api.v3election_pb2.LeaderKey
+
+
+
+#### create_lease_keepalive_task(id: int, interval: float)
+Creates asyncio Task which sends Keepalive request to given lease ID.
+
+
+* **Parameters**
+
+    
+    * **id** – Lease ID to send Keepalive request.
+
+
+    * **interval** – Interval to send Keepalive request.
+
+
+
+* **Returns**
+
+    **task**
+
+
+
+* **Return type**
+
+    asyncio.Task
+
 
 
 #### _async_ delete(key: str, prev_kv: bool = False, encoding: Optional[str] = None)
@@ -229,7 +290,29 @@ Gets value associated with given key from the key-value store.
 
 
 
-#### _async_ get_prefix(key: str, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, sort_order: etcetra.types.RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: etcetra.types.RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
+#### _async_ get_election(name: bytes)
+Returns the current election proclamation, if any.
+
+
+* **Parameters**
+
+    **name** – Name is the election identifier for the leadership information.
+
+
+
+* **Returns**
+
+    KV is the key-value pair representing the latest leader update
+
+
+
+* **Return type**
+
+    kv
+
+
+
+#### _async_ get_prefix(key: str, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
 Gets the key-value in dictionary from the key-value store with given key prefix.
 i.e. get_prefix(‘/sorna/local’) call looks up all keys which has /sorna/local prefix.
 
@@ -286,7 +369,7 @@ i.e. get_prefix(‘/sorna/local’) call looks up all keys which has /sorna/loca
 
 
 
-#### _async_ get_range(key: str, range_end: str, limit: Optional[str] = None, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, sort_order: etcetra.types.RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: etcetra.types.RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
+#### _async_ get_range(key: str, range_end: str, limit: Optional[str] = None, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
 Gets the key-value in dictionary from the key-value store with keys in [key, range_end) range.
 
 
@@ -374,7 +457,7 @@ Each expired key generates a delete event in the event history.
 
 
 
-#### _async_ keys_prefix(key: str, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, sort_order: etcetra.types.RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: etcetra.types.RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
+#### _async_ keys_prefix(key: str, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
 Gets the keys which has given prefix from the key-value store.
 
 
@@ -430,7 +513,7 @@ Gets the keys which has given prefix from the key-value store.
 
 
 
-#### _async_ keys_range(key: str, range_end: str, limit: Optional[str] = None, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, serializable: bool = True, sort_order: etcetra.types.RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: etcetra.types.RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
+#### _async_ keys_range(key: str, range_end: str, limit: Optional[str] = None, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, serializable: bool = True, sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
 Gets the keys in the range from the key-value store.
 
 
@@ -489,29 +572,39 @@ Gets the keys in the range from the key-value store.
 
 
 
-#### _async_ lease_keepalive(id: int, interval: float)
-Creates asyncio Task which sends Keepalive request to given lease ID.
+#### _async_ observe_election(name: bytes)
+Observe streams election proclamations in-order as made by the election’s elected leaders.
 
 
 * **Parameters**
 
-    
-    * **id** – Lease ID to send Keepalive request.
-
-
-    * **interval** – Interval to send Keepalive request.
+    **name** – Name is the election identifier for the leadership information.
 
 
 
 * **Returns**
 
-    **task**
+    **event** – A Leader object containing event information.
 
 
 
 * **Return type**
 
-    asyncio.Task
+    AsyncIterator[Leader]
+
+
+
+#### _async_ proclaim_election(leader: LeaderKey, value: bytes)
+Proclaim updates the leader’s posted value with a new value.
+
+
+* **Parameters**
+
+    
+    * **leader** – Leader is the leadership hold on the election.
+
+
+    * **value** – Value is an update meant to overwrite the leader’s current value.
 
 
 
@@ -556,6 +649,16 @@ Puts given key into the key-value store.
 
 
 
+#### _async_ resign_election(leader: LeaderKey)
+Resign releases election leadership so other campaigners may acquire leadership on the election.
+
+
+* **Parameters**
+
+    **leader** – Leader is the leadership to relinquish by resignation.
+
+
+
 #### _async_ revoke_lease(id: int)
 Revokes a lease. All keys attached to the lease will expire and be deleted.
 
@@ -566,7 +669,7 @@ Revokes a lease. All keys attached to the lease will expire and be deleted.
 
 
 
-#### _async_ txn(txn_builder: Callable[[etcetra.client.EtcdTransactionAction], None], encoding: Optional[str] = None)
+#### _async_ txn(txn_builder: Callable[[EtcdTransactionAction], None], encoding: Optional[str] = None)
 A shorthand helper for Txn, with no compare arguments.
 This can be helpful when user just wants to execute transaction without
 any conditions.
@@ -608,7 +711,7 @@ any conditions.
 
 
 
-#### _async_ txn_compare(compares: List[rpc_pb2.Compare], txn_builder: Callable[[etcetra.client.EtcdTransactionAction, etcetra.client.EtcdTransactionAction], None], encoding: Optional[str] = None)
+#### _async_ txn_compare(compares: List[Compare], txn_builder: Callable[[EtcdTransactionAction, EtcdTransactionAction], None], encoding: Optional[str] = None)
 Processes multiple requests in a single transaction.
 A txn request increments the revision of the key-value store
 and generates events with the same revision for every completed request.
@@ -667,7 +770,7 @@ It is not allowed to modify the same key several times within one txn.
 
 
 
-#### watch(key: str, ready_event: Optional[asyncio.locks.Event] = None, filters: Optional[List[etcetra.types.WatchCreateRequestFilterType]] = None, prev_kv: bool = False, progress_notify: bool = False, start_revision: Optional[int] = None, watch_id: Optional[int] = None, encoding: Optional[str] = None)
+#### watch(key: str, ready_event: Optional[Event] = None, filters: Optional[List[WatchCreateRequestFilterType]] = None, prev_kv: bool = False, progress_notify: bool = False, start_revision: Optional[int] = None, watch_id: Optional[int] = None, encoding: Optional[str] = None)
 Async iterator which watches for events happening or that have happened.
 Both input and output are streams; the input stream is for creating and canceling watchers
 and the output stream sends events.
@@ -729,7 +832,7 @@ The entire event history can be watched starting from the last compaction revisi
 
 
 
-#### watch_prefix(key: str, ready_event: Optional[asyncio.locks.Event] = None, filters: Optional[List[etcetra.types.WatchCreateRequestFilterType]] = None, prev_kv: bool = False, progress_notify: bool = True, start_revision: Optional[int] = None, watch_id: Optional[int] = None, encoding: Optional[str] = None)
+#### watch_prefix(key: str, ready_event: Optional[Event] = None, filters: Optional[List[WatchCreateRequestFilterType]] = None, prev_kv: bool = False, progress_notify: bool = True, start_revision: Optional[int] = None, watch_id: Optional[int] = None, encoding: Optional[str] = None)
 Watches for events happening or that have happened along keys with given prefix.
 Both input and output are streams; the input stream is for creating and canceling watchers
 and the output stream sends events.
@@ -801,7 +904,7 @@ A delete request increments the revision of the key-value store
 and generates a delete event in the event history for every deleted key.
 
 
-#### get(key: str, limit: Optional[str] = None, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, serializable: bool = True, sort_order: etcetra.types.RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: etcetra.types.RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
+#### get(key: str, limit: Optional[str] = None, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, serializable: bool = True, sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE, sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY, encoding: Optional[str] = None)
 Gets the keys in the range from the key-value store.
 
 
@@ -822,7 +925,7 @@ An enumeration.
 ### _class_ etcetra.types.CompareKey(key: 'str', target_lease: 'Optional[int]' = None, mod_revision: 'Optional[int]' = None, range_end: 'Optional[str]' = None, target_version: 'Optional[int]' = None, encoding: 'str' = 'utf-8')
 
 ### etcetra.types.DeleteRangeRequestType()
-alias of `rpc_pb2.DeleteRangeRequest`
+alias of `DeleteRangeRequest`
 
 
 ### _class_ etcetra.types.EtcdCredential(username: 'str', password: 'str')
@@ -832,7 +935,7 @@ alias of `rpc_pb2.DeleteRangeRequest`
 ### _class_ etcetra.types.HostPortPair(host: 'str', port: 'int')
 
 ### etcetra.types.PutRequestType()
-alias of `rpc_pb2.PutRequest`
+alias of `PutRequest`
 
 
 ### _class_ etcetra.types.RangeRequestSortOrder(value)
@@ -844,7 +947,7 @@ An enumeration.
 
 
 ### etcetra.types.RangeRequestType()
-alias of `rpc_pb2.RangeRequest`
+alias of `RangeRequest`
 
 
 ### _class_ etcetra.types.TxnReturnType(values, success)

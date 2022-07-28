@@ -164,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('version', type=str, help='target etcd version')
     parser.add_argument(
         '--repository-path', type=str,
-        help='git repository folder path of etcd source code to use. Ff not supplied, '
+        help='git repository folder path of etcd source code to use. If not supplied, '
              'this script will clone fresh repo on temporary directory and remove it upon exit.')
     args = parser.parse_args()
 
