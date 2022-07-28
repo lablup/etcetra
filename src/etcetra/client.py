@@ -31,7 +31,6 @@ from grpc.aio import (
 )
 from grpc.aio._typing import RequestType, RequestIterableType, ResponseType, ResponseIterableType
 
-from .grpc_api import kv_pb2
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3election_pb2, v3election_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
