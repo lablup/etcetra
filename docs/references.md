@@ -205,7 +205,7 @@ and generates a delete event in the event history for every deleted key.
 
 
 
-#### _async_ election_campaign(name: bytes, lease_id: int, value: Optional[bytes] = None)
+#### _async_ election_campaign(name: str, lease_id: int, value: Optional[str] = None, encoding: Optional[str] = None)
 Campaign waits to acquire leadership in an election,
 returning a LeaderKey representing the leadership if successful.
 The LeaderKey can then be used to issue new values on the election,
@@ -240,7 +240,7 @@ and resign from the election.
 
 
 
-#### _async_ election_leader(name: bytes)
+#### _async_ election_leader(name: str, encoding: Optional[str] = None)
 Returns the current election proclamation, if any.
 
 
@@ -262,7 +262,7 @@ Returns the current election proclamation, if any.
 
 
 
-#### _async_ election_observe(name: bytes)
+#### _async_ election_observe(name: str, encoding: Optional[str] = None)
 Observe streams election proclamations in-order as made by the election’s elected leaders.
 
 
@@ -284,7 +284,7 @@ Observe streams election proclamations in-order as made by the election’s elec
 
 
 
-#### _async_ election_proclaim(leader: LeaderKey, value: bytes)
+#### _async_ election_proclaim(leader: LeaderKey, value: str, encoding: Optional[str] = None)
 Proclaim updates the leader’s posted value with a new value.
 
 
@@ -298,7 +298,7 @@ Proclaim updates the leader’s posted value with a new value.
 
 
 
-#### _async_ election_resign(leader: LeaderKey)
+#### _async_ election_resign(leader: LeaderKey, encoding: Optional[str] = None)
 Resign releases election leadership so other campaigners may acquire leadership on the election.
 
 
