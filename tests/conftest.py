@@ -26,5 +26,5 @@ async def etcd(etcd_addr):
 
 
 @pytest.fixture(scope="module")
-def election_id() -> bytes:
-    return f"test/{uuid.uuid4()}".encode("utf-8")
+def election_id() -> str:
+    return f"test/{uuid.uuid4()}"

@@ -70,8 +70,6 @@ class WatchEventType(enum.Enum):
     DELETE = 1
 
 
-KeyValue = kv_pb2.KeyValue
-LeaderKey = v3election_pb2.LeaderKey
 PutRequestType = rpc_pb2.PutRequest
 RangeRequestType = rpc_pb2.RangeRequest
 DeleteRangeRequestType = rpc_pb2.DeleteRangeRequest
@@ -190,3 +188,59 @@ class EtcdLockOption:
     lock_name: str
     timeout: Optional[float]
     ttl: Optional[int]
+
+
+@dataclass
+class LeaderKey:
+    name: str
+    key: str
+    rev: int
+    lease: int
+
+    @classmethod
+    def parse(cls, key: v3election_pb2.LeaderKey, encoding: str = "utf-8") -> "LeaderKey":
+        return cls(
+            name=key.name.decode(encoding),
+            key=key.key.decode(encoding),
+            rev=key.rev,
+            lease=key.lease,
+        )
+
+    def proto(self, encoding: str = "utf-8") -> v3election_pb2.LeaderKey:
+        return v3election_pb2.LeaderKey(
+            name=self.name.encode(encoding),
+            key=self.key.encode(encoding),
+            rev=self.rev,
+            lease=self.lease,
+        )
+
+
+@dataclass
+class KeyValue:
+    key: str
+    create_revision: int
+    mod_revision: int
+    version: int
+    value: str
+    lease: int
+
+    @classmethod
+    def parse(cls, kv: kv_pb2.KeyValue, encoding: str = "utf-8") -> "KeyValue":
+        return cls(
+            key=kv.key.decode(encoding),
+            create_revision=kv.create_revision,
+            mod_revision=kv.mod_revision,
+            version=kv.version,
+            value=kv.value.decode(encoding),
+            lease=kv.lease,
+        )
+
+    def proto(self, encoding: str = "utf-8") -> kv_pb2.KeyValue:
+        return kv_pb2.KeyValue(
+            key=self.key.encode(encoding),
+            create_revision=self.create_revision,
+            mod_revision=self.mod_revision,
+            version=self.version,
+            value=self.value.encode(encoding),
+            lease=self.lease,
+        )

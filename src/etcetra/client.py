@@ -1036,9 +1036,10 @@ class EtcdCommunicator:
 
     async def election_campaign(
         self,
-        name: bytes,
+        name: str,
         lease_id: int,
-        value: Optional[bytes] = None,
+        value: Optional[str] = None,
+        encoding: Optional[str] = None,
     ) -> LeaderKey:
         """
         Campaign waits to acquire leadership in an election,
@@ -1063,12 +1064,17 @@ class EtcdCommunicator:
         leader: etcetra.types.LeaderKey
             Leader describes the resources used for holding leadereship of the election.
         """
+        encoding = encoding or self.encoding
+        name = name.encode(encoding)
+        if value:
+            value = value.encode(encoding)
+
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         request = v3election_pb2.CampaignRequest(name=name, lease=lease_id, value=value)
         response = await stub.Campaign(request)
-        return response.leader
+        return LeaderKey.parse(response.leader, encoding=encoding)
 
-    async def election_resign(self, leader: LeaderKey) -> None:
+    async def election_resign(self, leader: LeaderKey, encoding: Optional[str] = None) -> None:
         """
         Resign releases election leadership so other campaigners may acquire leadership on the election.
 
@@ -1077,10 +1083,18 @@ class EtcdCommunicator:
         leader
             Leader is the leadership to relinquish by resignation.
         """
+        encoding = encoding or self.encoding
+        leader = leader.proto(encoding=encoding)
+
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         await stub.Resign(v3election_pb2.ResignRequest(leader=leader))
 
-    async def election_proclaim(self, leader: LeaderKey, value: bytes) -> None:
+    async def election_proclaim(
+        self,
+        leader: LeaderKey,
+        value: str,
+        encoding: Optional[str] = None,
+    ) -> None:
         """
         Proclaim updates the leader’s posted value with a new value.
 
@@ -1091,10 +1105,14 @@ class EtcdCommunicator:
         value
             Value is an update meant to overwrite the leader’s current value.
         """
+        encoding = encoding or self.encoding
+        leader = leader.proto(encoding=encoding)
+        value = value.encode(encoding)
+
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader, value=value))
 
-    async def election_leader(self, name: bytes) -> LeaderKey:
+    async def election_leader(self, name: str, encoding: Optional[str] = None) -> LeaderKey:
         """
         Returns the current election proclamation, if any.
 
@@ -1108,16 +1126,23 @@ class EtcdCommunicator:
         leader_key
             LeaderKey is the key-value pair representing the latest leader update
         """
+        encoding = encoding or self.encoding
+        name = name.encode(encoding)
+
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         response = await stub.Leader(v3election_pb2.LeaderRequest(name=name))
         return LeaderKey(
-            name=name,
-            key=response.kv.key,
+            name=name.decode(encoding),
+            key=response.kv.key.decode(encoding),
             rev=response.kv.mod_revision,
             lease=response.kv.lease,
         )
 
-    async def election_observe(self, name: bytes) -> AsyncIterator[KeyValue]:
+    async def election_observe(
+        self,
+        name: str,
+        encoding: Optional[str] = None,
+    ) -> AsyncIterator[KeyValue]:
         """
         Observe streams election proclamations in-order as made by the election’s elected leaders.
 
@@ -1131,9 +1156,12 @@ class EtcdCommunicator:
         event: AsyncIterator[KeyValue]
             A `KeyValue` object containing event information.
         """
+        encoding = encoding or self.encoding
+        name = name.encode(encoding)
+
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         async for response in stub.Observe(v3election_pb2.LeaderRequest(name=name)):
-            yield response.kv
+            yield KeyValue.parse(response.kv, encoding=self.encoding)
 
     async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
         """
