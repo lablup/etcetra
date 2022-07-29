@@ -1,4 +1,6 @@
 import os
+import uuid
+
 import pytest
 
 from etcetra import EtcdClient, HostPortPair
@@ -21,3 +23,8 @@ async def etcd(etcd_addr):
         async with etcd.connect() as communicator:
             await communicator.delete_prefix('/test')
         del etcd
+
+
+@pytest.fixture(scope="module")
+def election_id() -> bytes:
+    return f"test/{uuid.uuid4()}".encode("utf-8")

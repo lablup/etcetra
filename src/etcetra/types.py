@@ -6,7 +6,7 @@ from typing import Any, List, Mapping, NamedTuple, Optional, Union, TYPE_CHECKIN
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
 
-from etcetra.grpc_api import rpc_pb2
+from etcetra.grpc_api import kv_pb2, rpc_pb2, v3election_pb2
 
 __all__ = (
     'RangeRequestSortOrder',
@@ -70,6 +70,8 @@ class WatchEventType(enum.Enum):
     DELETE = 1
 
 
+KeyValue = kv_pb2.KeyValue
+LeaderKey = v3election_pb2.LeaderKey
 PutRequestType = rpc_pb2.PutRequest
 RangeRequestType = rpc_pb2.RangeRequest
 DeleteRangeRequestType = rpc_pb2.DeleteRangeRequest
@@ -188,13 +190,3 @@ class EtcdLockOption:
     lock_name: str
     timeout: Optional[float]
     ttl: Optional[int]
-
-
-@dataclass
-class Leader:
-    key: bytes
-    create_revision: int
-    mod_revision: int
-    version: int
-    value: bytes
-    lease: int

@@ -36,7 +36,7 @@ from .grpc_api import v3election_pb2, v3election_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
     DeleteRangeRequestType, EtcdCredential, EtcdLockOption, HostPortPair,
-    Leader, PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget,
+    KeyValue, LeaderKey, PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget,
     RangeRequestType, TransactionRequest, TxnReturnType, TxnReturnValues,
     WatchCreateRequestFilterType, WatchEvent, WatchEventType,
 )
@@ -1034,12 +1034,12 @@ class EtcdCommunicator:
         )
         return [x.key.decode(encoding) for x in response.kvs]
 
-    async def campaign_election(
+    async def election_campaign(
         self,
         name: bytes,
         lease_id: int,
         value: Optional[bytes] = None,
-    ) -> v3election_pb2.LeaderKey:
+    ) -> LeaderKey:
         """
         Campaign waits to acquire leadership in an election,
         returning a LeaderKey representing the leadership if successful.
@@ -1060,7 +1060,7 @@ class EtcdCommunicator:
 
         Returns
         -------
-        leader: etcetra.grpc_api.v3election_pb2.LeaderKey
+        leader: etcetra.types.LeaderKey
             Leader describes the resources used for holding leadereship of the election.
         """
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
@@ -1068,7 +1068,7 @@ class EtcdCommunicator:
         response = await stub.Campaign(request)
         return response.leader
 
-    async def resign_election(self, leader: v3election_pb2.LeaderKey) -> None:
+    async def election_resign(self, leader: LeaderKey) -> None:
         """
         Resign releases election leadership so other campaigners may acquire leadership on the election.
 
@@ -1080,7 +1080,7 @@ class EtcdCommunicator:
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         await stub.Resign(v3election_pb2.ResignRequest(leader=leader))
 
-    async def proclaim_election(self, leader: v3election_pb2.LeaderKey, value: bytes) -> None:
+    async def election_proclaim(self, leader: LeaderKey, value: bytes) -> None:
         """
         Proclaim updates the leader’s posted value with a new value.
 
@@ -1094,7 +1094,7 @@ class EtcdCommunicator:
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader, value=value))
 
-    async def get_election(self, name: bytes) -> Leader:
+    async def election_leader(self, name: bytes) -> LeaderKey:
         """
         Returns the current election proclamation, if any.
 
@@ -1105,21 +1105,19 @@ class EtcdCommunicator:
 
         Returns
         -------
-        kv
-            KV is the key-value pair representing the latest leader update
+        leader_key
+            LeaderKey is the key-value pair representing the latest leader update
         """
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         response = await stub.Leader(v3election_pb2.LeaderRequest(name=name))
-        return Leader(
+        return LeaderKey(
+            name=name,
             key=response.kv.key,
-            create_revision=response.kv.create_revision,
-            mod_revision=response.kv.mod_revision,
-            version=response.kv.version,
-            value=response.kv.value,
+            rev=response.kv.mod_revision,
             lease=response.kv.lease,
         )
 
-    async def observe_election(self, name: bytes) -> AsyncIterator[Leader]:
+    async def election_observe(self, name: bytes) -> AsyncIterator[KeyValue]:
         """
         Observe streams election proclamations in-order as made by the election’s elected leaders.
 
@@ -1130,19 +1128,12 @@ class EtcdCommunicator:
 
         Returns
         -------
-        event: AsyncIterator[Leader]
-            A `Leader` object containing event information.
+        event: AsyncIterator[KeyValue]
+            A `KeyValue` object containing event information.
         """
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         async for response in stub.Observe(v3election_pb2.LeaderRequest(name=name)):
-            yield Leader(
-                key=response.kv.key,
-                create_revision=response.kv.create_revision,
-                mod_revision=response.kv.mod_revision,
-                version=response.kv.version,
-                value=response.kv.value,
-                lease=response.kv.lease,
-            )
+            yield response.kv
 
     async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
         """
