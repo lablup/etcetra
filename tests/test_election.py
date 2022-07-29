@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from multiprocessing import Queue
+from multiprocessing import Queue, queues
 from typing import Optional
 
 import pytest
@@ -33,7 +33,7 @@ async def test_election_service(etcd: EtcdClient, election_id: bytes):
         async with etcd.connect() as communicator:
             await communicator.election_proclaim(leader, value)
 
-    async def _observe_task(election_id: bytes, queue: Optional[Queue] = None) -> None:
+    async def _observe_task(election_id: bytes, queue: Optional[queues.Queue] = None) -> None:
         async with etcd.connect() as communicator:
             async for kv in communicator.election_observe(name=election_id):
                 if queue:
@@ -47,7 +47,7 @@ async def test_election_service(etcd: EtcdClient, election_id: bytes):
     current_leader_key = await _leader_task()
     assert current_leader_key.lease == leader_key.lease
 
-    queue = Queue()
+    queue: queues.Queue = Queue()
     observe_task = asyncio.create_task(_observe_task(election_id, queue=queue))
     await asyncio.sleep(3.0)
 
