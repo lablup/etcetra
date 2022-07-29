@@ -68,41 +68,6 @@ Acquired lock will automatically released when user exits with context.
 Performs actual API calls to Etcd cluster and returns result.
 
 
-#### _async_ campaign_election(name: bytes, lease_id: int, value: Optional[bytes] = None)
-Campaign waits to acquire leadership in an election,
-returning a LeaderKey representing the leadership if successful.
-The LeaderKey can then be used to issue new values on the election,
-transactionally guard API requests on leadership still being held,
-and resign from the election.
-
-
-* **Parameters**
-
-    
-    * **name** – Name is the election’s identifier for the campaign.
-
-
-    * **lease_id** – LeaseID is the ID of the lease attached to leadership of the election.
-    If the lease expires or is revoked before resigning leadership,
-    then the leadership is transferred to the next campaigner, if any.
-
-
-    * **value** – Value is the initial proclaimed value set when the campaigner wins the election.
-
-
-
-* **Returns**
-
-    **leader** – Leader describes the resources used for holding leadereship of the election.
-
-
-
-* **Return type**
-
-    etcetra.grpc_api.v3election_pb2.LeaderKey
-
-
-
 #### create_lease_keepalive_task(id: int, interval: float)
 Creates asyncio Task which sends Keepalive request to given lease ID.
 
@@ -240,6 +205,109 @@ and generates a delete event in the event history for every deleted key.
 
 
 
+#### _async_ election_campaign(name: bytes, lease_id: int, value: Optional[bytes] = None)
+Campaign waits to acquire leadership in an election,
+returning a LeaderKey representing the leadership if successful.
+The LeaderKey can then be used to issue new values on the election,
+transactionally guard API requests on leadership still being held,
+and resign from the election.
+
+
+* **Parameters**
+
+    
+    * **name** – Name is the election’s identifier for the campaign.
+
+
+    * **lease_id** – LeaseID is the ID of the lease attached to leadership of the election.
+    If the lease expires or is revoked before resigning leadership,
+    then the leadership is transferred to the next campaigner, if any.
+
+
+    * **value** – Value is the initial proclaimed value set when the campaigner wins the election.
+
+
+
+* **Returns**
+
+    **leader** – Leader describes the resources used for holding leadereship of the election.
+
+
+
+* **Return type**
+
+    etcetra.types.LeaderKey
+
+
+
+#### _async_ election_leader(name: bytes)
+Returns the current election proclamation, if any.
+
+
+* **Parameters**
+
+    **name** – Name is the election identifier for the leadership information.
+
+
+
+* **Returns**
+
+    LeaderKey is the key-value pair representing the latest leader update
+
+
+
+* **Return type**
+
+    leader_key
+
+
+
+#### _async_ election_observe(name: bytes)
+Observe streams election proclamations in-order as made by the election’s elected leaders.
+
+
+* **Parameters**
+
+    **name** – Name is the election identifier for the leadership information.
+
+
+
+* **Returns**
+
+    **event** – A KeyValue object containing event information.
+
+
+
+* **Return type**
+
+    AsyncIterator[KeyValue]
+
+
+
+#### _async_ election_proclaim(leader: LeaderKey, value: bytes)
+Proclaim updates the leader’s posted value with a new value.
+
+
+* **Parameters**
+
+    
+    * **leader** – Leader is the leadership hold on the election.
+
+
+    * **value** – Value is an update meant to overwrite the leader’s current value.
+
+
+
+#### _async_ election_resign(leader: LeaderKey)
+Resign releases election leadership so other campaigners may acquire leadership on the election.
+
+
+* **Parameters**
+
+    **leader** – Leader is the leadership to relinquish by resignation.
+
+
+
 #### _async_ get(key: str, max_create_revision: Optional[str] = None, max_mod_revision: Optional[str] = None, min_create_revision: Optional[str] = None, min_mod_revision: Optional[str] = None, revision: Optional[str] = None, encoding: Optional[str] = None)
 Gets value associated with given key from the key-value store.
 
@@ -287,28 +355,6 @@ Gets value associated with given key from the key-value store.
 * **Return type**
 
     Optional[str]
-
-
-
-#### _async_ get_election(name: bytes)
-Returns the current election proclamation, if any.
-
-
-* **Parameters**
-
-    **name** – Name is the election identifier for the leadership information.
-
-
-
-* **Returns**
-
-    KV is the key-value pair representing the latest leader update
-
-
-
-* **Return type**
-
-    kv
 
 
 
@@ -572,42 +618,6 @@ Gets the keys in the range from the key-value store.
 
 
 
-#### _async_ observe_election(name: bytes)
-Observe streams election proclamations in-order as made by the election’s elected leaders.
-
-
-* **Parameters**
-
-    **name** – Name is the election identifier for the leadership information.
-
-
-
-* **Returns**
-
-    **event** – A Leader object containing event information.
-
-
-
-* **Return type**
-
-    AsyncIterator[Leader]
-
-
-
-#### _async_ proclaim_election(leader: LeaderKey, value: bytes)
-Proclaim updates the leader’s posted value with a new value.
-
-
-* **Parameters**
-
-    
-    * **leader** – Leader is the leadership hold on the election.
-
-
-    * **value** – Value is an update meant to overwrite the leader’s current value.
-
-
-
 #### _async_ put(key: str, value: Optional[str], lease: Optional[int] = None, prev_kv: bool = False, encoding: Optional[str] = None)
 Puts given key into the key-value store.
 
@@ -646,16 +656,6 @@ Puts given key into the key-value store.
 * **Return type**
 
     Optional[str]
-
-
-
-#### _async_ resign_election(leader: LeaderKey)
-Resign releases election leadership so other campaigners may acquire leadership on the election.
-
-
-* **Parameters**
-
-    **leader** – Leader is the leadership to relinquish by resignation.
 
 
 
