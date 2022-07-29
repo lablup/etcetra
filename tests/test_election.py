@@ -70,3 +70,8 @@ async def test_election_service(etcd: EtcdClient, election_id: str):
     new_leader_key = await asyncio.wait_for(new_campaign_task, timeout=None)
     current_leader_key = await _leader_task()
     assert current_leader_key.lease == new_leader_key.lease
+
+    # Cleanup granted leases
+    async with etcd.connect() as communicator:
+        await communicator.revoke_lease(leader_key.lease)
+        await communicator.revoke_lease(new_leader_key.lease)
