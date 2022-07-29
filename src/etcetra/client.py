@@ -1065,12 +1065,12 @@ class EtcdCommunicator:
             Leader describes the resources used for holding leadereship of the election.
         """
         encoding = encoding or self.encoding
-        name = name.encode(encoding)
-        if value:
-            value = value.encode(encoding)
+        name_bytes = name.encode(encoding)
+        value_bytes: Optional[bytes] = value.encode(encoding) if value is not None \
+                                       else None
 
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
-        request = v3election_pb2.CampaignRequest(name=name, lease=lease_id, value=value)
+        request = v3election_pb2.CampaignRequest(name=name_bytes, lease=lease_id, value=value_bytes)
         response = await stub.Campaign(request)
         return LeaderKey.parse(response.leader, encoding=encoding)
 
@@ -1107,10 +1107,10 @@ class EtcdCommunicator:
         """
         encoding = encoding or self.encoding
         leader = leader.proto(encoding=encoding)
-        value = value.encode(encoding)
+        value_bytes = value.encode(encoding)
 
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
-        await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader, value=value))
+        await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader, value=value_bytes))
 
     async def election_leader(self, name: str, encoding: Optional[str] = None) -> LeaderKey:
         """
@@ -1127,12 +1127,12 @@ class EtcdCommunicator:
             LeaderKey is the key-value pair representing the latest leader update
         """
         encoding = encoding or self.encoding
-        name = name.encode(encoding)
+        name_bytes = name.encode(encoding)
 
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
-        response = await stub.Leader(v3election_pb2.LeaderRequest(name=name))
+        response = await stub.Leader(v3election_pb2.LeaderRequest(name=name_bytes))
         return LeaderKey(
-            name=name.decode(encoding),
+            name=name,
             key=response.kv.key.decode(encoding),
             rev=response.kv.mod_revision,
             lease=response.kv.lease,
@@ -1157,10 +1157,10 @@ class EtcdCommunicator:
             A `KeyValue` object containing event information.
         """
         encoding = encoding or self.encoding
-        name = name.encode(encoding)
+        name_bytes = name.encode(encoding)
 
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
-        async for response in stub.Observe(v3election_pb2.LeaderRequest(name=name)):
+        async for response in stub.Observe(v3election_pb2.LeaderRequest(name=name_bytes)):
             yield KeyValue.parse(response.kv, encoding=self.encoding)
 
     async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
