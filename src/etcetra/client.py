@@ -1066,8 +1066,10 @@ class EtcdCommunicator:
         """
         encoding = encoding or self.encoding
         name_bytes = name.encode(encoding)
-        value_bytes: Optional[bytes] = value.encode(encoding) if value is not None \
-                                       else None
+        value_bytes: Optional[bytes] = (
+            value.encode(encoding) if value is not None
+            else None
+        )
 
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
         request = v3election_pb2.CampaignRequest(name=name_bytes, lease=lease_id, value=value_bytes)
@@ -1084,10 +1086,10 @@ class EtcdCommunicator:
             Leader is the leadership to relinquish by resignation.
         """
         encoding = encoding or self.encoding
-        leader = leader.proto(encoding=encoding)
+        leader_proto: v3election_pb2.LeaderKey = leader.proto(encoding=encoding)
 
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
-        await stub.Resign(v3election_pb2.ResignRequest(leader=leader))
+        await stub.Resign(v3election_pb2.ResignRequest(leader=leader_proto))
 
     async def election_proclaim(
         self,
@@ -1106,11 +1108,11 @@ class EtcdCommunicator:
             Value is an update meant to overwrite the leader’s current value.
         """
         encoding = encoding or self.encoding
-        leader = leader.proto(encoding=encoding)
+        leader_proto: v3election_pb2.LeaderKey = leader.proto(encoding=encoding)
         value_bytes = value.encode(encoding)
 
         stub = v3election_pb2_grpc.ElectionStub(self.channel)
-        await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader, value=value_bytes))
+        await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader_proto, value=value_bytes))
 
     async def election_leader(self, name: str, encoding: Optional[str] = None) -> LeaderKey:
         """
