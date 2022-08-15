@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Callable, ClassVar, Mapping, Optional
+from typing import Any, AsyncIterable, Callable, ClassVar, Coroutine, Mapping, Optional
 
 import grpc.aio
 

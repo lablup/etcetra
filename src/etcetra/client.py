@@ -31,7 +31,7 @@ from grpc.aio import (
 )
 from grpc.aio._typing import RequestType, RequestIterableType, ResponseType, ResponseIterableType
 
-from .errors import grpc_exception_handler
+from .errors import grpc_exception_handler, grpc_exception_handler_aiter
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
@@ -1115,7 +1115,6 @@ class EtcdCommunicator:
 
         return asyncio.create_task(_task_worker())
 
-    @grpc_exception_handler
     async def _watch_impl(
         self, key: bytes, encoding: str,
         ready_event: Optional[asyncio.Event] = None,
@@ -1147,13 +1146,13 @@ class EtcdCommunicator:
             request.create_request.watch_id = str(watch_id)
 
         stream = stub.Watch()
-        await stream.write(request)
+        await grpc_exception_handler(lambda: stream.write(request))
 
         try:
             if ready_event is not None:
                 ready_event.set()
             while True:
-                response = await stream.read()
+                response = await grpc_exception_handler(lambda: stream.read())
                 watch_id = response.watch_id
                 for event in response.events:
                     if event.type == 0:
@@ -1174,7 +1173,7 @@ class EtcdCommunicator:
             if watch_id is not None and not stream.done():
                 request = rpc_pb2.WatchRequest()
                 request.cancel_request.watch_id = watch_id
-                await stream.write(request)
+                await grpc_exception_handler(lambda: stream.write(request))
 
     def watch(
         self, key: str,
