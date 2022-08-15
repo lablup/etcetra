@@ -1082,7 +1082,6 @@ class EtcdCommunicator:
         stub = rpc_pb2_grpc.LeaseStub(self.channel)
         await stub.LeaseRevoke(rpc_pb2.LeaseRevokeRequest(ID=id))
 
-    @grpc_exception_handler
     def create_lease_keepalive_task(self, id: int, interval: float) -> asyncio.Task:
         """
         Creates asyncio Task which sends Keepalive request to given lease ID.
@@ -1098,6 +1097,8 @@ class EtcdCommunicator:
         -------
         task: asyncio.Task
         """
+
+        @grpc_exception_handler
         async def _task_worker():
             stub = rpc_pb2_grpc.LeaseStub(self.channel)
 
@@ -1114,6 +1115,7 @@ class EtcdCommunicator:
 
         return asyncio.create_task(_task_worker())
 
+    @grpc_exception_handler
     async def _watch_impl(
         self, key: bytes, encoding: str,
         ready_event: Optional[asyncio.Event] = None,
@@ -1174,7 +1176,6 @@ class EtcdCommunicator:
                 request.cancel_request.watch_id = watch_id
                 await stream.write(request)
 
-    @grpc_exception_handler
     def watch(
         self, key: str,
         ready_event: Optional[asyncio.Event] = None,
@@ -1240,7 +1241,6 @@ class EtcdCommunicator:
             watch_id=watch_id,
         )
 
-    @grpc_exception_handler
     def watch_prefix(
         self, key: str,
         ready_event: Optional[asyncio.Event] = None,
