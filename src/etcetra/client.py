@@ -1597,9 +1597,12 @@ class EtcdLockManager:
         stub = v3lock_pb2_grpc.LockStub(self.channel)
         if self.ttl is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
-            self._lease_id = await communicator.grant_lease(self.ttl)
+            _lease_id = await communicator.grant_lease(self.ttl)
+            self._lease_id = _lease_id
             self._keepalive_task = communicator.create_lease_keepalive_task(
-                self._lease_id, self.ttl / 10)
+                _lease_id,
+                self.ttl / 10,
+            )
         else:
             self._lease_id = None
         try:
