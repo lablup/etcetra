@@ -31,6 +31,7 @@ from grpc.aio import (
 )
 from grpc.aio._typing import RequestType, RequestIterableType, ResponseType, ResponseIterableType
 
+from .errors import grpc_exception_handler
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
@@ -39,6 +40,8 @@ from .types import (
     TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
     WatchEvent, WatchEventType,
 )
+
+
 __all__ = (
     'EtcdClient',
     'EtcdCommunicator',
@@ -510,6 +513,7 @@ class EtcdCommunicator:
         )
         return response.token
 
+    @grpc_exception_handler
     async def put(
         self, key: str, value: Optional[str],
         lease: Optional[int] = None,
@@ -560,6 +564,7 @@ class EtcdCommunicator:
             return response.prev_kv.value.decode(encoding)
         return None
 
+    @grpc_exception_handler
     async def get(
         self, key: str,
         max_create_revision: Optional[str] = None,
@@ -625,6 +630,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def get_prefix(
         self, key: str,
         max_create_revision: Optional[str] = None,
@@ -697,6 +703,7 @@ class EtcdCommunicator:
             ret[x.key.decode(encoding)] = x.value.decode(encoding)
         return ret
 
+    @grpc_exception_handler
     async def get_range(
         self, key: str, range_end: str,
         limit: Optional[str] = None,
@@ -772,6 +779,7 @@ class EtcdCommunicator:
             ret[x.key.decode(encoding)] = x.value.decode(encoding)
         return ret
 
+    @grpc_exception_handler
     async def delete(
         self, key: str,
         prev_kv: bool = False, encoding: Optional[str] = None,
@@ -809,6 +817,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def delete_prefix(
         self, key: str,
         prev_kv: bool = False, encoding: Optional[str] = None,
@@ -849,6 +858,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def delete_range(
         self, key: str, range_end: str,
         prev_kv: bool = False, encoding: Optional[str] = None,
@@ -892,6 +902,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def keys_prefix(
         self, key: str,
         max_create_revision: Optional[str] = None,
@@ -960,6 +971,7 @@ class EtcdCommunicator:
         )
         return [x.key.decode(encoding) for x in response.kvs]
 
+    @grpc_exception_handler
     async def keys_range(
         self, key: str, range_end: str,
         limit: Optional[str] = None,
@@ -1033,6 +1045,7 @@ class EtcdCommunicator:
         )
         return [x.key.decode(encoding) for x in response.kvs]
 
+    @grpc_exception_handler
     async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
         """
         Creates a lease which expires if the server does not receive a keepAlive
@@ -1056,6 +1069,7 @@ class EtcdCommunicator:
         response = await stub.LeaseGrant(rpc_pb2.LeaseGrantRequest(ID=id or 0, TTL=ttl))
         return response.ID
 
+    @grpc_exception_handler
     async def revoke_lease(self, id: int):
         """
         Revokes a lease. All keys attached to the lease will expire and be deleted.
@@ -1068,6 +1082,7 @@ class EtcdCommunicator:
         stub = rpc_pb2_grpc.LeaseStub(self.channel)
         await stub.LeaseRevoke(rpc_pb2.LeaseRevokeRequest(ID=id))
 
+    @grpc_exception_handler
     def create_lease_keepalive_task(self, id: int, interval: float) -> asyncio.Task:
         """
         Creates asyncio Task which sends Keepalive request to given lease ID.
@@ -1159,6 +1174,7 @@ class EtcdCommunicator:
                 request.cancel_request.watch_id = watch_id
                 await stream.write(request)
 
+    @grpc_exception_handler
     def watch(
         self, key: str,
         ready_event: Optional[asyncio.Event] = None,
@@ -1224,6 +1240,7 @@ class EtcdCommunicator:
             watch_id=watch_id,
         )
 
+    @grpc_exception_handler
     def watch_prefix(
         self, key: str,
         ready_event: Optional[asyncio.Event] = None,
@@ -1294,6 +1311,7 @@ class EtcdCommunicator:
             start_revision=start_revision, watch_id=watch_id,
         )
 
+    @grpc_exception_handler
     async def txn(
         self,
         txn_builder: Callable[[EtcdTransactionAction], None],
@@ -1337,6 +1355,7 @@ class EtcdCommunicator:
         )
         return results
 
+    @grpc_exception_handler
     async def txn_compare(
         self,
         compares: List[rpc_pb2.Compare],  # type: ignore
