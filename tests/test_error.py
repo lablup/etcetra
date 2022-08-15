@@ -10,9 +10,3 @@ async def test_connect_error():
     with pytest.raises(EtcdUnknownError):
         async with etcd.connect() as communicator:
             await communicator.get('/this/should/raise/error')
-
-
-@pytest.mark.asyncio
-async def test_nonexistent_key_error(etcd: EtcdClient):
-    async with etcd.connect() as communicator:
-        await communicator.delete('/test/non/existent/key')

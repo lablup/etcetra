@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from typing import List
 import pytest
 
@@ -19,7 +20,6 @@ async def test_watch(etcd: EtcdClient):
             await communicator.delete('/tmp/qwe')
 
     async def _watch_task():
-
         async with etcd.connect() as communicator:
             async for event in communicator.watch_prefix('/tmp'):
                 events.append(event)
