@@ -1591,6 +1591,12 @@ class EtcdLockManager:
                     ),
                 )
             self._lock_id = response.key.decode(self.encoding)
+            if self._keepalive_task is not None:
+                self._keepalive_task.cancel()
+                try:
+                    await self._keepalive_task
+                except asyncio.CancelledError:
+                    pass
         except asyncio.TimeoutError:
             if self._keepalive_task is not None:
                 self._keepalive_task.cancel()
