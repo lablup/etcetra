@@ -1592,12 +1592,6 @@ class EtcdLockManager:
                 )
             self._lock_id = response.key.decode(self.encoding)
         except asyncio.TimeoutError:
-            if self._keepalive_task is not None:
-                self._keepalive_task.cancel()
-                try:
-                    await self._keepalive_task
-                except asyncio.CancelledError:
-                    pass
             if self._lease_id is not None:
                 try:
                     await communicator.revoke_lease(self._lease_id)
@@ -1605,14 +1599,13 @@ class EtcdLockManager:
                     if e.code() != grpc.StatusCode.NOT_FOUND:
                         raise e
             raise
-        except:
+        finally:
             if self._keepalive_task is not None:
                 self._keepalive_task.cancel()
                 try:
                     await self._keepalive_task
                 except asyncio.CancelledError:
                     pass
-            raise
 
     async def __aexit__(self, exc_type, exc, tb) -> Optional[bool]:
         """

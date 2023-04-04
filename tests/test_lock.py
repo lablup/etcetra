@@ -52,14 +52,11 @@ async def test_lock_ttl(etcd: EtcdClient):
 
     async def _lock_task_1():
         try:
-            conmgr = etcd.with_lock('/test/ttllocka', ttl=3)
-            await conmgr.__aenter__()
-            await asyncio.sleep(10)
+            async with etcd.with_lock('/test/ttllocka', ttl=3):
+                await asyncio.sleep(5)
         except Exception:
             traceback.print_exc()
             raise
-        finally:
-            conmgr._lock._keepalive_task.cancel()
 
     async def _lock_task_2(queue: Queue[float]):
         try:
@@ -71,14 +68,57 @@ async def test_lock_ttl(etcd: EtcdClient):
             raise
 
     task_1 = asyncio.create_task(_lock_task_1())
-    await asyncio.sleep(5)
-    task_1.cancel()
+    await asyncio.sleep(1)
     task_2 = asyncio.create_task(_lock_task_2(queue))
     await asyncio.sleep(5)
 
     assert not queue.empty()
-    assert 2.5 < queue.get() < 3.5
+    assert 1.5 < queue.get() < 2.5
     assert queue.empty()
 
     task_1.cancel()
     task_2.cancel()
+
+
+@pytest.mark.asyncio
+async def test_lock_ttl_2(etcd: EtcdClient):
+    queue: Queue[float] = Queue()
+
+    async def _lock_task_1():
+        async with etcd.with_lock('/test/ttl'):
+            await asyncio.sleep(3)
+
+    async def _lock_task_2():
+        async with etcd.with_lock('/test/ttl', ttl=3):
+            await asyncio.sleep(5)
+
+    async def _lock_task_3(queue: Queue[float]):
+        start = time.monotonic()
+        async with etcd.with_lock('/test/ttl'):
+            queue.put(time.monotonic() - start)
+
+    task_1 = asyncio.create_task(_lock_task_1())
+    await asyncio.sleep(1)
+    task_2 = asyncio.create_task(_lock_task_2())
+    await asyncio.sleep(4)
+    task_3 = asyncio.create_task(_lock_task_3(queue))
+    await asyncio.sleep(3)
+
+    # Timeline
+    # T+0: Task 1 starts and acquires the lock
+    # T+1: Task 2 starts and tries to acquire the lock
+    # T+3: Task 1 releases the lock and task 2 acquires the lock
+    # T+5: Task 3 starts and tries to acquire the lock
+    # T+6: Task 2 releases the lock and task 3 acquires the lock
+
+    # The test is that TTL starts to count when the lock is acquired (T+3),
+    # not when the task tries to acquire the lock (T+1). So 3 seconds TTL
+    # expires at T+6, not T+4, blocking the task 3's attempt at T+5.
+
+    assert not queue.empty()
+    assert 0.5 < queue.get() < 1.5
+    assert queue.empty()
+
+    task_1.cancel()
+    task_2.cancel()
+    task_3.cancel()
