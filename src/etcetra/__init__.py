@@ -9,4 +9,4 @@ __all__ = (
 from .client import *  # noqa
 from .types import *  # noqa
 
-__version__ = '0.1.14'
+__version__ = '0.1.15'
