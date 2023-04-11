@@ -32,12 +32,13 @@ from grpc.aio import (
 from grpc.aio._typing import RequestType, RequestIterableType, ResponseType, ResponseIterableType
 
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
+from .grpc_api import v3election_pb2, v3election_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
     DeleteRangeRequestType, EtcdCredential, EtcdLockOption, HostPortPair,
-    PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
-    TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
-    WatchEvent, WatchEventType,
+    KeyValue, LeaderKey, PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget,
+    RangeRequestType, TransactionRequest, TxnReturnType, TxnReturnValues,
+    WatchCreateRequestFilterType, WatchEvent, WatchEventType,
 )
 __all__ = (
     'EtcdClient',
@@ -1032,6 +1033,137 @@ class EtcdCommunicator:
             ),
         )
         return [x.key.decode(encoding) for x in response.kvs]
+
+    async def election_campaign(
+        self,
+        name: str,
+        lease_id: int,
+        value: Optional[str] = None,
+        encoding: Optional[str] = None,
+    ) -> LeaderKey:
+        """
+        Campaign waits to acquire leadership in an election,
+        returning a LeaderKey representing the leadership if successful.
+        The LeaderKey can then be used to issue new values on the election,
+        transactionally guard API requests on leadership still being held,
+        and resign from the election.
+
+        Parameters
+        ---------
+        name
+            Name is the election’s identifier for the campaign.
+        lease_id
+            LeaseID is the ID of the lease attached to leadership of the election.
+            If the lease expires or is revoked before resigning leadership,
+            then the leadership is transferred to the next campaigner, if any.
+        value:
+            Value is the initial proclaimed value set when the campaigner wins the election.
+
+        Returns
+        -------
+        leader: etcetra.types.LeaderKey
+            Leader describes the resources used for holding leadereship of the election.
+        """
+        encoding = encoding or self.encoding
+        name_bytes = name.encode(encoding)
+        value_bytes: Optional[bytes] = (
+            value.encode(encoding) if value is not None
+            else None
+        )
+
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        request = v3election_pb2.CampaignRequest(name=name_bytes, lease=lease_id, value=value_bytes)
+        response = await stub.Campaign(request)
+        return LeaderKey.parse(response.leader, encoding=encoding)
+
+    async def election_resign(self, leader: LeaderKey, encoding: Optional[str] = None) -> None:
+        """
+        Resign releases election leadership so other campaigners may acquire leadership on the election.
+
+        Parameters
+        ---------
+        leader
+            Leader is the leadership to relinquish by resignation.
+        """
+        encoding = encoding or self.encoding
+        leader_proto: v3election_pb2.LeaderKey = leader.proto(encoding=encoding)
+
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        await stub.Resign(v3election_pb2.ResignRequest(leader=leader_proto))
+
+    async def election_proclaim(
+        self,
+        leader: LeaderKey,
+        value: str,
+        encoding: Optional[str] = None,
+    ) -> None:
+        """
+        Proclaim updates the leader’s posted value with a new value.
+
+        Parameters
+        ---------
+        leader
+            Leader is the leadership hold on the election.
+        value
+            Value is an update meant to overwrite the leader’s current value.
+        """
+        encoding = encoding or self.encoding
+        leader_proto: v3election_pb2.LeaderKey = leader.proto(encoding=encoding)
+        value_bytes = value.encode(encoding)
+
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        await stub.Proclaim(v3election_pb2.ProclaimRequest(leader=leader_proto, value=value_bytes))
+
+    async def election_leader(self, name: str, encoding: Optional[str] = None) -> LeaderKey:
+        """
+        Returns the current election proclamation, if any.
+
+        Parameters
+        ---------
+        name
+            Name is the election identifier for the leadership information.
+
+        Returns
+        -------
+        leader_key
+            LeaderKey is the key-value pair representing the latest leader update
+        """
+        encoding = encoding or self.encoding
+        name_bytes = name.encode(encoding)
+
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        response = await stub.Leader(v3election_pb2.LeaderRequest(name=name_bytes))
+        return LeaderKey(
+            name=name,
+            key=response.kv.key.decode(encoding),
+            rev=response.kv.mod_revision,
+            lease=response.kv.lease,
+        )
+
+    async def election_observe(
+        self,
+        name: str,
+        encoding: Optional[str] = None,
+    ) -> AsyncIterator[KeyValue]:
+        """
+        Observe streams election proclamations in-order as made by the election’s elected leaders.
+
+        Parameters
+        ---------
+        name
+            Name is the election identifier for the leadership information.
+
+        Returns
+        -------
+        event: AsyncIterator[KeyValue]
+            A `KeyValue` object containing event information.
+        """
+        encoding = encoding or self.encoding
+        name_bytes = name.encode(encoding)
+
+        stub = v3election_pb2_grpc.ElectionStub(self.channel)
+        async for response in stub.Observe(v3election_pb2.LeaderRequest(name=name_bytes)):
+            yield KeyValue.parse(response.kv, encoding=self.encoding)
 
     async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
         """
