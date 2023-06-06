@@ -31,6 +31,7 @@ from grpc.aio import (
 )
 from grpc.aio._typing import RequestType, RequestIterableType, ResponseType, ResponseIterableType
 
+from .errors import grpc_exception_handler, match_grpc_error
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
@@ -39,6 +40,8 @@ from .types import (
     TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
     WatchEvent, WatchEventType,
 )
+
+
 __all__ = (
     'EtcdClient',
     'EtcdCommunicator',
@@ -519,6 +522,7 @@ class EtcdCommunicator:
         )
         return response.token
 
+    @grpc_exception_handler
     async def put(
         self, key: str, value: Optional[str],
         lease: Optional[int] = None,
@@ -569,6 +573,7 @@ class EtcdCommunicator:
             return response.prev_kv.value.decode(encoding)
         return None
 
+    @grpc_exception_handler
     async def get(
         self, key: str,
         max_create_revision: Optional[str] = None,
@@ -634,6 +639,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def get_prefix(
         self, key: str,
         max_create_revision: Optional[str] = None,
@@ -706,6 +712,7 @@ class EtcdCommunicator:
             ret[x.key.decode(encoding)] = x.value.decode(encoding)
         return ret
 
+    @grpc_exception_handler
     async def get_range(
         self, key: str, range_end: str,
         limit: Optional[str] = None,
@@ -781,6 +788,7 @@ class EtcdCommunicator:
             ret[x.key.decode(encoding)] = x.value.decode(encoding)
         return ret
 
+    @grpc_exception_handler
     async def delete(
         self, key: str,
         prev_kv: bool = False, encoding: Optional[str] = None,
@@ -818,6 +826,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def delete_prefix(
         self, key: str,
         prev_kv: bool = False, encoding: Optional[str] = None,
@@ -858,6 +867,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def delete_range(
         self, key: str, range_end: str,
         prev_kv: bool = False, encoding: Optional[str] = None,
@@ -901,6 +911,7 @@ class EtcdCommunicator:
         else:
             return None
 
+    @grpc_exception_handler
     async def keys_prefix(
         self, key: str,
         max_create_revision: Optional[str] = None,
@@ -969,6 +980,7 @@ class EtcdCommunicator:
         )
         return [x.key.decode(encoding) for x in response.kvs]
 
+    @grpc_exception_handler
     async def keys_range(
         self, key: str, range_end: str,
         limit: Optional[str] = None,
@@ -1042,6 +1054,7 @@ class EtcdCommunicator:
         )
         return [x.key.decode(encoding) for x in response.kvs]
 
+    @grpc_exception_handler
     async def grant_lease(self, ttl: int, id: Optional[int] = None) -> int:
         """
         Creates a lease which expires if the server does not receive a keepAlive
@@ -1065,6 +1078,7 @@ class EtcdCommunicator:
         response = await stub.LeaseGrant(rpc_pb2.LeaseGrantRequest(ID=id or 0, TTL=ttl))
         return response.ID
 
+    @grpc_exception_handler
     async def revoke_lease(self, id: int) -> None:
         """
         Revokes a lease. All keys attached to the lease will expire and be deleted.
@@ -1092,6 +1106,8 @@ class EtcdCommunicator:
         -------
         task: asyncio.Task
         """
+
+        @grpc_exception_handler
         async def _task_worker():
             stub = rpc_pb2_grpc.LeaseStub(self.channel)
 
@@ -1139,9 +1155,9 @@ class EtcdCommunicator:
             request.create_request.watch_id = str(watch_id)
 
         stream = stub.Watch()
-        await stream.write(request)
 
         try:
+            await stream.write(request)
             if ready_event is not None:
                 ready_event.set()
             while True:
@@ -1162,6 +1178,8 @@ class EtcdCommunicator:
                         prev_value,
                         event_type,
                     )
+        except grpc.aio.AioRpcError as e:
+            raise match_grpc_error(e) from e
         finally:
             if watch_id is not None and not stream.done():
                 request = rpc_pb2.WatchRequest()
@@ -1303,6 +1321,7 @@ class EtcdCommunicator:
             start_revision=start_revision, watch_id=watch_id,
         )
 
+    @grpc_exception_handler
     async def txn(
         self,
         txn_builder: Callable[[EtcdTransactionAction], None],
@@ -1346,6 +1365,7 @@ class EtcdCommunicator:
         )
         return results
 
+    @grpc_exception_handler
     async def txn_compare(
         self,
         compares: List[rpc_pb2.Compare],  # type: ignore
@@ -1586,9 +1606,12 @@ class EtcdLockManager:
         stub = v3lock_pb2_grpc.LockStub(self.channel)
         if self.ttl is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
-            self._lease_id = await communicator.grant_lease(self.ttl)
+            _lease_id = await communicator.grant_lease(self.ttl)
+            self._lease_id = _lease_id
             self._keepalive_task = communicator.create_lease_keepalive_task(
-                self._lease_id, self.ttl / 10)
+                _lease_id,
+                self.ttl / 10,
+            )
         else:
             self._lease_id = None
         try:
