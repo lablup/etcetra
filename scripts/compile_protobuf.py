@@ -2,12 +2,13 @@
 
 import argparse
 import re
-import subprocess
 import glob
+import tempfile
 from pathlib import Path
 import random
 import shutil
 import string
+import subprocess
 from typing import List, Optional
 
 
@@ -164,8 +165,12 @@ if __name__ == '__main__':
     parser.add_argument('version', type=str, help='target etcd version')
     parser.add_argument(
         '--repository-path', type=str,
-        help='git repository folder path of etcd source code to use. Ff not supplied, '
+        help='git repository folder path of etcd source code to use. If not supplied, '
              'this script will clone fresh repo on temporary directory and remove it upon exit.')
     args = parser.parse_args()
+    if (_path := args.repository_path) is not None:
+        repo_path = Path(_path)
+    else:
+        repo_path = None
 
-    main(args.version, Path(args.repository_path).resolve())
+    main(args.version, repo_path)

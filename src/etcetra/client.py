@@ -60,7 +60,7 @@ class Proto(Protocol[T]):
 class EtcdAuthInterceptor:
     token: str
 
-    def __init__(self, token):
+    def __init__(self, token) -> None:
         self.token = token
 
     def build_details(self, orig_details: ClientCallDetails) -> ClientCallDetails:
@@ -192,7 +192,7 @@ class EtcdClient:
                 return communicator
         return P()
 
-    def connect(self):
+    def connect(self) -> EtcdConnectionManager:
         """
         Async context manager which establishes connection to Etcd cluster.
 
@@ -203,7 +203,12 @@ class EtcdClient:
         """
         return EtcdConnectionManager(self._build_connector_protocol())
 
-    def with_lock(self, lock_name: str, timeout: Optional[float] = None, ttl: Optional[int] = None):
+    def with_lock(
+        self,
+        lock_name: str,
+        timeout: Optional[float] = None,
+        ttl: Optional[int] = None,
+    ) -> EtcdConnectionManager:
         """
         Async context manager which establishes connection and then
         immediately tries to acquire lock with given lock name.
@@ -484,7 +489,11 @@ class EtcdCommunicator:
     encoding: str
     channel: Channel
 
-    def __init__(self, channel: Channel, encoding: str = 'utf-8'):
+    def __init__(
+        self,
+        channel: Channel,
+        encoding: str = 'utf-8',
+    ) -> None:
         """
         Creates `EtcdCommunicator` instance.
         In most cases, users won't have to directly create `EtcdCommunicator` class;
@@ -1070,7 +1079,7 @@ class EtcdCommunicator:
         return response.ID
 
     @grpc_exception_handler
-    async def revoke_lease(self, id: int):
+    async def revoke_lease(self, id: int) -> None:
         """
         Revokes a lease. All keys attached to the lease will expire and be deleted.
 
@@ -1425,7 +1434,7 @@ class EtcdTransaction:
     success: EtcdTransactionAction
     failure: EtcdTransactionAction
 
-    def __init__(self, channel: Channel, encoding: str = 'utf-8'):
+    def __init__(self, channel: Channel, encoding: str = 'utf-8') -> None:
         self.encoding = encoding
         self.channel = channel
 
@@ -1436,7 +1445,7 @@ class EtcdTransaction:
         self,
         compares: List[rpc_pb2.Compare],  # type: ignore
         encoding: Optional[str] = None,
-    ):
+    ) -> TxnReturnType:
         """
         Executes Txn and returns results.
         """
@@ -1472,7 +1481,7 @@ class EtcdTransaction:
                 ret.append(None)  # TODO: Handle delete response
             else:
                 ret.append(None)
-        return ret, result.succeeded
+        return TxnReturnType(ret, result.succeeded)
 
 
 class EtcdTransactionAction:
@@ -1484,11 +1493,11 @@ class EtcdTransactionAction:
 
     callback: Optional[Callable[[bool], None]] = None
 
-    def __init__(self, encoding: str = 'utf-8'):
+    def __init__(self, encoding: str = 'utf-8') -> None:
         self.requests = []
         self.encoding = encoding
 
-    def add_callback(self, cb: Optional[Callable[[bool], None]]):
+    def add_callback(self, cb: Optional[Callable[[bool], None]]) -> None:
         self.callback = cb
 
     def put(
@@ -1497,7 +1506,7 @@ class EtcdTransactionAction:
         ignore_value: bool = False,
         ignore_lease: bool = False,
         encoding: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Puts given key into the key-value store.
         """
@@ -1523,7 +1532,7 @@ class EtcdTransactionAction:
         sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
         sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
         encoding: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Gets the keys in the range from the key-value store.
         """
@@ -1545,7 +1554,7 @@ class EtcdTransactionAction:
             ),
         )
 
-    def delete(self, key: str, encoding: Optional[str] = None):
+    def delete(self, key: str, encoding: Optional[str] = None) -> None:
         """
         Deletes the given range from the key-value store.
         A delete request increments the revision of the key-value store
@@ -1621,9 +1630,14 @@ class EtcdLockManager:
                 except grpc.aio.AioRpcError as e:
                     if e.code() != grpc.StatusCode.NOT_FOUND:
                         raise e
+            raise
+        finally:
             if self._keepalive_task is not None:
                 self._keepalive_task.cancel()
-            raise
+                try:
+                    await self._keepalive_task
+                except asyncio.CancelledError:
+                    pass
 
     async def __aexit__(self, exc_type, exc, tb) -> Optional[bool]:
         """
@@ -1633,6 +1647,12 @@ class EtcdLockManager:
         """
         assert self._lock_id is not None
 
+        if self._keepalive_task is not None:
+            self._keepalive_task.cancel()
+            try:
+                await self._keepalive_task
+            except asyncio.CancelledError:
+                pass
         if self._lease_id is not None:
             communicator = EtcdCommunicator(self.channel, encoding=self.encoding)
             try:
@@ -1640,8 +1660,6 @@ class EtcdLockManager:
             except grpc.aio.AioRpcError as e:
                 if e.code() != grpc.StatusCode.NOT_FOUND:
                     raise e
-            if self._keepalive_task is not None:
-                self._keepalive_task.cancel()
         else:
             stub = v3lock_pb2_grpc.LockStub(self.channel)
             await stub.Unlock(
