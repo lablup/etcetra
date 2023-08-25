@@ -1442,9 +1442,8 @@ class EtcdTransaction:
         for response in result.responses:
             response_type = response.WhichOneof('response')
             if response_type == 'response_put':
-                # nb: Venu Added support for put revision
                 ret.append({
-                    "revision": response.response_put.header.revision
+                    "revision": response.response_put.header.revision,
                 })
             elif response_type == 'response_range':
                 ret.append({
