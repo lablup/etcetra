@@ -1471,7 +1471,9 @@ class EtcdTransaction:
         for response in result.responses:
             response_type = response.WhichOneof('response')
             if response_type == 'response_put':
-                ret.append(None)  # TODO: Handle put response
+                ret.append({
+                    "revision": response.response_put.header.revision,
+                })
             elif response_type == 'response_range':
                 ret.append({
                     x.key.decode(encoding): x.value.decode(encoding)

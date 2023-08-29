@@ -16,7 +16,7 @@ async def test_txn(etcd: EtcdClient):
 
         results = await communicator.txn(_txn)
         assert results[0] == {'/test/asd': '123'}
-        assert results[1] is None
+        assert results[1] is not None and results[1].get("revision") is not None
         assert results[2] == {'/test/foo': 'bar'}
 
         assert (await communicator.get('/test/qwe')) == 'rty'
