@@ -104,7 +104,7 @@ jobs:
     needs: [lint, typecheck, test]
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     environment:
-      name: pypi
+      name: deploy-to-pypi
       url: https://pypi.org/p/etcetra
     permissions:
       id-token: write
