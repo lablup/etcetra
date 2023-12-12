@@ -1,5 +1,4 @@
 from . import client as _client
-from . import client_v2 as _client_v2
 from . import types as _types
 
 __all__ = (
