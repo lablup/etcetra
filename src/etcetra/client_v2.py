@@ -24,7 +24,7 @@ from .errors import grpc_exception_handler, match_grpc_error
 from .grpc_api import rpc_pb2, rpc_pb2_grpc
 from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
 from .types import (
-    DeleteRangeRequestType, EtcdCredential, EtcdLockOption, HostPortPair,
+    DeleteRangeRequestType, EtcdCredential, EtcdLockOptionV2 as EtcdLockOption, HostPortPair,
     PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
     TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
     WatchEvent, WatchEventType,
@@ -130,7 +130,7 @@ class EtcdClient:
 
     def with_lock(
         self,
-        lock_name: str,
+        lock_name: bytes,
         timeout: Optional[float] = None,
         ttl: Optional[int] = None,
     ) -> EtcdConnectionManager:

@@ -829,6 +829,8 @@ alias of `rpc_pb2.DeleteRangeRequest`
 
 ### _class_ etcetra.types.EtcdLockOption(lock_name: 'str', timeout: 'Optional[float]', ttl: 'Optional[int]')
 
+### _class_ etcetra.types.EtcdLockOptionV2(lock_name: 'bytes', timeout: 'Optional[float]', ttl: 'Optional[int]')
+
 ### _class_ etcetra.types.HostPortPair(host: 'str', port: 'int')
 
 ### etcetra.types.PutRequestType()

@@ -4,12 +4,10 @@ from . import types as _types
 
 __all__ = (
     *_client.__all__,
-    *_client_v2.__all__,
     *_types.__all__,
 )
 
 from .client import *  # noqa
-from .client_v2 import * # noqa
 from .types import *  # noqa
 
 __version__ = '0.1.18'

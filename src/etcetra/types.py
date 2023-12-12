@@ -189,3 +189,9 @@ class EtcdLockOption:
     lock_name: str
     timeout: Optional[float]
     ttl: Optional[int]
+
+@dataclass
+class EtcdLockOptionV2:
+    lock_name: bytes
+    timeout: Optional[float]
+    ttl: Optional[int]
