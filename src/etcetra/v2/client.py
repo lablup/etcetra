@@ -20,16 +20,17 @@ from async_timeout import timeout
 import grpc
 from grpc.aio import Channel
 
-from .errors import grpc_exception_handler, match_grpc_error
-from .grpc_api import rpc_pb2, rpc_pb2_grpc
-from .grpc_api import v3lock_pb2, v3lock_pb2_grpc
-from .types import (
-    DeleteRangeRequestType, EtcdCredential, EtcdLockOptionV2 as EtcdLockOption, HostPortPair,
+from ..errors import grpc_exception_handler, match_grpc_error
+from ..grpc_api import rpc_pb2, rpc_pb2_grpc
+from ..grpc_api import v3lock_pb2, v3lock_pb2_grpc
+from ..types import (
+    DeleteRangeRequestType, EtcdCredential, HostPortPair,
     PutRequestType, RangeRequestSortOrder, RangeRequestSortTarget, RangeRequestType,
     TransactionRequest, TxnReturnType, TxnReturnValues, WatchCreateRequestFilterType,
     WatchEvent, WatchEventType,
 )
-from .client import (
+from .types import EtcdLockOption
+from ..client import (
     EtcdAuthUnaryUnaryInterceptor,
     EtcdAuthUnaryStreamInterceptor,
     EtcdAuthStreamUnaryInterceptor,
