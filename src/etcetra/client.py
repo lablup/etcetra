@@ -18,7 +18,6 @@ from typing import (
     TypeVar,
     Union,
 )
-from async_timeout import timeout
 
 import grpc
 from grpc.aio import (
@@ -1617,7 +1616,7 @@ class EtcdLockManager:
         else:
             self._lease_id = None
         try:
-            async with timeout(self.timeout_seconds):
+            async with asyncio.timeout(self.timeout_seconds):
                 response = await stub.Lock(
                     v3lock_pb2.LockRequest(
                         name=self.name.encode(self.encoding),
