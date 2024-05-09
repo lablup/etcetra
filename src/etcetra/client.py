@@ -362,7 +362,7 @@ class EtcdRequestGenerator:
         encoding='utf-8',
     ):
         encoded_key = key.encode(encoding)
-        range_end = increment_last_byte(encoded_key, encoding)
+        range_end = increment_last_byte(encoded_key)
         return rpc_pb2.RangeRequest(
             key=encoded_key,
             range_end=range_end,
@@ -405,7 +405,7 @@ class EtcdRequestGenerator:
     ):
         # TODO: Implement prev_kv response
         encoded_key = key.encode(encoding)
-        range_end = increment_last_byte(encoded_key, encoding)
+        range_end = increment_last_byte(encoded_key)
         return rpc_pb2.DeleteRangeRequest(
             key=encoded_key,
             range_end=range_end,
@@ -455,7 +455,7 @@ class EtcdRequestGenerator:
         encoding='utf-8',
     ):
         encoded_key = key.encode(encoding)
-        range_end = increment_last_byte(encoded_key, encoding)
+        range_end = increment_last_byte(encoded_key)
         return rpc_pb2.RangeRequest(
             key=encoded_key,
             range_end=range_end,
@@ -1300,7 +1300,7 @@ class EtcdCommunicator:
             encoding = self.encoding
 
         encoded_key = key.encode(encoding)
-        range_end = increment_last_byte(encoded_key, encoding)
+        range_end = increment_last_byte(encoded_key)
         return self._watch_impl(
             key.encode(encoding), encoding,
             ready_event=ready_event, filters=filters, prev_kv=prev_kv,
@@ -1661,13 +1661,8 @@ class EtcdLockManager:
         return False
 
 
-def increment_last_byte(key, encoding="utf-8"):
-    if type(key) is str:
-        byte_string = key.encode(encoding)
-    else:
-        byte_string = key
-
-    s = bytearray(byte_string)
+def increment_last_byte(encoded_key):
+    s = bytearray(encoded_key)
     for i in range(len(s) - 1, -1, -1):
         if s[i] < 0xff:
             s[i] += 1
