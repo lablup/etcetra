@@ -276,209 +276,12 @@ class EtcdConnectionManager:
         return False
 
 
-class EtcdRequestGenerator:
-    @classmethod
-    def put(
-        cls, key: str, value: Optional[str],
-        lease: Optional[int] = None,
-        ignore_value: bool = False,
-        ignore_lease: bool = False,
-        encoding='utf-8',
-    ):
-        # TODO: Implement prev_kv response
-        return rpc_pb2.PutRequest(
-            key=key.encode(encoding),
-            value=value.encode(encoding) if value else None,
-            lease=lease, ignore_lease=ignore_lease, ignore_value=ignore_value,
-        )
-
-    @classmethod
-    def get(
-        cls, key: str,
-        limit: Optional[str] = None,
-        max_create_revision: Optional[str] = None,
-        max_mod_revision: Optional[str] = None,
-        min_create_revision: Optional[str] = None,
-        min_mod_revision: Optional[str] = None,
-        revision: Optional[str] = None,
-        serializable: bool = True,
-        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
-        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
-        encoding='utf-8',
-    ):
-        return rpc_pb2.RangeRequest(
-            key=key.encode(encoding),
-            limit=limit,
-            max_create_revision=max_create_revision,
-            max_mod_revision=max_mod_revision,
-            min_create_revision=min_create_revision,
-            min_mod_revision=min_mod_revision,
-            revision=revision,
-            serializable=serializable,
-            sort_order=sort_order.value,
-            sort_target=sort_target.value,
-        )
-
-    @classmethod
-    def get_range(
-        cls, key: str, range_end: str,
-        limit: Optional[str] = None,
-        max_create_revision: Optional[str] = None,
-        max_mod_revision: Optional[str] = None,
-        min_create_revision: Optional[str] = None,
-        min_mod_revision: Optional[str] = None,
-        revision: Optional[str] = None,
-        serializable: bool = True,
-        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
-        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
-        encoding='utf-8',
-    ):
-        return rpc_pb2.RangeRequest(
-            key=key.encode(encoding),
-            range_end=range_end.encode(encoding),
-            limit=limit,
-            max_create_revision=max_create_revision,
-            max_mod_revision=max_mod_revision,
-            min_create_revision=min_create_revision,
-            min_mod_revision=min_mod_revision,
-            revision=revision,
-            serializable=serializable,
-            sort_order=sort_order.value,
-            sort_target=sort_target.value,
-        )
-
-    @classmethod
-    def get_prefix(
-        cls, key: str,
-        limit: Optional[str] = None,
-        max_create_revision: Optional[str] = None,
-        max_mod_revision: Optional[str] = None,
-        min_create_revision: Optional[str] = None,
-        min_mod_revision: Optional[str] = None,
-        revision: Optional[str] = None,
-        serializable: bool = True,
-        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
-        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
-        encoding='utf-8',
-    ):
-        encoded_key = key.encode(encoding)
-        if key[-1] == '/' and len(key) >= 2:
-            range_end = encoded_key[:-2] + bytes([encoded_key[-2] + 1]) + b'/'
-        else:
-            range_end = encoded_key[:-1] + bytes([encoded_key[-1] + 1])
-        return rpc_pb2.RangeRequest(
-            key=encoded_key,
-            range_end=range_end,
-            limit=limit,
-            max_create_revision=max_create_revision,
-            max_mod_revision=max_mod_revision,
-            min_create_revision=min_create_revision,
-            min_mod_revision=min_mod_revision,
-            revision=revision,
-            serializable=serializable,
-            sort_order=sort_order.value,
-            sort_target=sort_target.value,
-        )
-
-    @classmethod
-    def delete(
-        cls, key: str,
-        encoding='utf-8',
-    ):
-        # TODO: Implement prev_kv response
-        return rpc_pb2.DeleteRangeRequest(
-            key=key.encode(encoding),
-        )
-
-    @classmethod
-    def delete_range(
-        cls, key: str, range_end: str,
-        encoding='utf-8',
-    ):
-        # TODO: Implement prev_kv response
-        return rpc_pb2.DeleteRangeRequest(
-            key=key.encode(encoding),
-            range_end=range_end.encode(encoding),
-        )
-
-    @classmethod
-    def delete_prefix(
-        cls, key: str,
-        encoding='utf-8',
-    ):
-        # TODO: Implement prev_kv response
-        encoded_key = key.encode(encoding)
-        if key[-1] == '/' and len(key) >= 2:
-            range_end = encoded_key[:-2] + bytes([encoded_key[-2] + 1]) + b'/'
-        else:
-            range_end = encoded_key[:-1] + bytes([encoded_key[-1] + 1])
-        return rpc_pb2.DeleteRangeRequest(
-            key=encoded_key,
-            range_end=range_end,
-        )
-
-    @classmethod
-    def keys_range(
-        cls, key: str, range_end: str,
-        limit: Optional[str] = None,
-        max_create_revision: Optional[str] = None,
-        max_mod_revision: Optional[str] = None,
-        min_create_revision: Optional[str] = None,
-        min_mod_revision: Optional[str] = None,
-        revision: Optional[str] = None,
-        serializable: bool = True,
-        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
-        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
-        encoding='utf-8',
-    ):
-        return rpc_pb2.RangeRequest(
-            key=key.encode(encoding),
-            range_end=range_end.encode(encoding),
-            keys_only=True,
-            limit=limit,
-            max_create_revision=max_create_revision,
-            max_mod_revision=max_mod_revision,
-            min_create_revision=min_create_revision,
-            min_mod_revision=min_mod_revision,
-            revision=revision,
-            serializable=serializable,
-            sort_order=sort_order.value,
-            sort_target=sort_target.value,
-        )
-
-    @classmethod
-    def keys_prefix(
-        cls, key: str,
-        limit: Optional[str] = None,
-        max_create_revision: Optional[str] = None,
-        max_mod_revision: Optional[str] = None,
-        min_create_revision: Optional[str] = None,
-        min_mod_revision: Optional[str] = None,
-        revision: Optional[str] = None,
-        serializable: bool = True,
-        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
-        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
-        encoding='utf-8',
-    ):
-        encoded_key = key.encode(encoding)
-        if key[-1] == '/' and len(key) >= 2:
-            range_end = encoded_key[:-2] + bytes([encoded_key[-2] + 1]) + b'/'
-        else:
-            range_end = encoded_key[:-1] + bytes([encoded_key[-1] + 1])
-        return rpc_pb2.RangeRequest(
-            key=encoded_key,
-            range_end=range_end,
-            keys_only=True,
-            limit=limit,
-            max_create_revision=max_create_revision,
-            max_mod_revision=max_mod_revision,
-            min_create_revision=min_create_revision,
-            min_mod_revision=min_mod_revision,
-            revision=revision,
-            serializable=serializable,
-            sort_order=sort_order.value,
-            sort_target=sort_target.value,
-        )
+def parse_range_end(key: str, encoding: str) -> bytes:
+    encoded_key = key.encode(encoding)
+    if key[-1] == '/' and len(key) >= 2:
+        return encoded_key[:-2] + bytes([encoded_key[-2] + 1]) + b'/'
+    else:
+        return encoded_key[:-1] + bytes([encoded_key[-1] + 1])
 
 
 class EtcdCommunicator:
@@ -521,15 +324,21 @@ class EtcdCommunicator:
         )
         return response.token
 
+
     @grpc_exception_handler
-    async def put(
-        self, key: str, value: Optional[str],
+    async def put_bytes(
+        self,
+        key: str,
+        value: Optional[bytes],
         lease: Optional[int] = None,
         prev_kv: bool = False,
         encoding: Optional[str] = None,
+        *,
+        ignore_lease: bool = False,
     ) -> Optional[str]:
         """
         Puts given key into the key-value store.
+        The value should be `bytes`.
 
         Parameters
         ---------
@@ -537,6 +346,66 @@ class EtcdCommunicator:
             The key to put into the key-value store
         value
             The value to associate with the key in the key-value store.
+            If the value is `None`, `ignore_value` sets to `True`.
+        lease
+            The lease ID to associate with the key in the key-value store. Defaults to `None`.
+            `None` lease indicates no lease.
+        prev_kv
+            If this value is `True`, gets the previous value before changing it and returns it.
+            Defaults to `False`.
+        encoding
+            Character encoding type to encode/decode key.
+            Defaults to `utf-8`.
+        ignore_lease
+            Update the key without changing its current lease.
+
+        Returns
+        -------
+        value: Optional[str]
+            If `prev_kv` is set to `True` and previous value exists, returns previous value.
+            Otherwise it will just return `None`.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        ignore_value = value is None
+        if ignore_value:
+            value = b''
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+        response = await stub.Put(
+            rpc_pb2.PutRequest(
+                key=key.encode(encoding),
+                value=value,
+                lease=lease,
+                ignore_lease=ignore_lease,
+                ignore_value=ignore_value,
+            ),
+        )
+        if prev_kv and response.prev_kv is not None and response.prev_kv.value is not None:
+            return response.prev_kv.value
+        return None
+
+    @grpc_exception_handler
+    async def put(
+        self,
+        key: str,
+        value: Optional[str],
+        lease: Optional[int] = None,
+        prev_kv: bool = False,
+        encoding: Optional[str] = None,
+        *,
+        ignore_lease: bool = False,
+    ) -> Optional[str]:
+        """
+        Puts given key into the key-value store.
+        The value should be `str`.
+
+        Parameters
+        ---------
+        key
+            The key to put into the key-value store
+        value
+            The value to associate with the key in the key-value store.
+            If the value is `None`, `ignore_value` sets to `True`.
         lease
             The lease ID to associate with the key in the key-value store. Defaults to `None`.
             `None` lease indicates no lease.
@@ -548,6 +417,8 @@ class EtcdCommunicator:
             If this value is `None`, this method will use default encoding which is set when creating
             this instance.
             Defaults to `utf-8`.
+        ignore_lease
+            Update the key without changing its current lease.
 
         Returns
         -------
@@ -562,25 +433,114 @@ class EtcdCommunicator:
             value = ''
         stub = rpc_pb2_grpc.KVStub(self.channel)
         response = await stub.Put(
-            EtcdRequestGenerator.put(
-                key, value,
-                lease=lease, ignore_value=ignore_value,
-                encoding=encoding,
+            rpc_pb2.PutRequest(
+                key=key.encode(encoding),
+                value=value.encode(encoding) if value else None,
+                lease=lease,
+                ignore_lease=ignore_lease,
+                ignore_value=ignore_value,
             ),
         )
         if prev_kv and response.prev_kv is not None and response.prev_kv.value is not None:
             return response.prev_kv.value.decode(encoding)
         return None
 
+
     @grpc_exception_handler
-    async def get(
-        self, key: str,
+    async def get_bytes(
+        self,
+        key: str,
         max_create_revision: Optional[str] = None,
         max_mod_revision: Optional[str] = None,
         min_create_revision: Optional[str] = None,
         min_mod_revision: Optional[str] = None,
         revision: Optional[str] = None,
         encoding: Optional[str] = None,
+        *,
+        limit: str | None = None,
+        serializable: bool = True,
+        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
+        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
+    ) -> Optional[str]:
+        """
+        Gets `bytes` value associated with given key from the key-value store.
+
+        Parameters
+        ---------
+        key
+            The key to look up.
+        max_create_revision
+            The upper bound for returned key create revisions;
+            all keys with greater create revisions will be filtered away.
+        max_mod_revision
+            The upper bound for returned key mod revisions;
+            all keys with greater mod revisions will be filtered away.
+        min_create_revision
+            The lower bound for returned key create revisions;
+            all keys with lesser create revisions will be filtered away.
+        min_mod_revision
+            The lower bound for returned key mod revisions;
+            all keys with lesser mod revisions will be filtered away.
+        revision
+            The point-in-time of the key-value store to use for the range.
+            If revision is less or equal to zero, the range is over the newest key-value store.
+            If the revision has been compacted, ErrCompacted is returned as a response.
+        encoding
+            Character encoding type to encode/decode key.
+            Defaults to `utf-8`.
+        limit
+            The maximum number of keys returned for the request.
+            When limit is set to "0", it is treated as no limit.
+        serializable
+            Sets the range request to use serializable member-local reads.
+        sort_order
+            The ordering for sorted requests.
+        sort_target
+            The key-value field to sort.
+
+        Returns
+        -------
+        value: Optional[str]
+            Returns value if given key exists. Otherwise it will return `None`.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+        response = await stub.Range(
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                limit=limit,
+                max_create_revision=max_create_revision,
+                max_mod_revision=max_mod_revision,
+                min_create_revision=min_create_revision,
+                min_mod_revision=min_mod_revision,
+                revision=revision,
+                serializable=serializable,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
+            ),
+        )
+        if len(response.kvs) > 0:
+            return response.kvs[0].value
+        else:
+            return None
+
+
+    @grpc_exception_handler
+    async def get(
+        self,
+        key: str,
+        max_create_revision: Optional[str] = None,
+        max_mod_revision: Optional[str] = None,
+        min_create_revision: Optional[str] = None,
+        min_mod_revision: Optional[str] = None,
+        revision: Optional[str] = None,
+        encoding: Optional[str] = None,
+        *,
+        limit: str | None = None,
+        serializable: bool = True,
+        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
+        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
     ) -> Optional[str]:
         """
         Gets value associated with given key from the key-value store.
@@ -610,6 +570,15 @@ class EtcdCommunicator:
             If this value is `None`, this method will use default encoding which is set when creating
             this instance.
             Defaults to `utf-8`.
+        limit
+            The maximum number of keys returned for the request.
+            When limit is set to "0", it is treated as no limit.
+        serializable
+            Sets the range request to use serializable member-local reads.
+        sort_order
+            The ordering for sorted requests.
+        sort_target
+            The key-value field to sort.
 
         Returns
         -------
@@ -620,17 +589,17 @@ class EtcdCommunicator:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
         response = await stub.Range(
-            EtcdRequestGenerator.get(
-                key,
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                limit=limit,
                 max_create_revision=max_create_revision,
                 max_mod_revision=max_mod_revision,
                 min_create_revision=min_create_revision,
                 min_mod_revision=min_mod_revision,
                 revision=revision,
-                serializable=True,
-                sort_order=RangeRequestSortOrder.NONE,
-                sort_target=RangeRequestSortTarget.KEY,
-                encoding=encoding,
+                serializable=serializable,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
             ),
         )
         if len(response.kvs) > 0:
@@ -639,8 +608,9 @@ class EtcdCommunicator:
             return None
 
     @grpc_exception_handler
-    async def get_prefix(
-        self, key: str,
+    async def get_prefix_bytes(
+        self,
+        key: str,
         max_create_revision: Optional[str] = None,
         max_mod_revision: Optional[str] = None,
         min_create_revision: Optional[str] = None,
@@ -649,6 +619,9 @@ class EtcdCommunicator:
         sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
         sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
         encoding: Optional[str] = None,
+        *,
+        limit: str | None = None,
+        serializable: bool = True,
     ) -> Mapping[str, str]:
         """
         Gets the key-value in dictionary from the key-value store with given key prefix.
@@ -683,6 +656,11 @@ class EtcdCommunicator:
             If this value is `None`, this method will use default encoding which is set when creating
             this instance.
             Defaults to `utf-8`.
+        limit
+            The maximum number of keys returned for the request.
+            When limit is set to "0", it is treated as no limit.
+        serializable
+            Sets the range request to use serializable member-local reads.
 
         Returns
         -------
@@ -692,18 +670,104 @@ class EtcdCommunicator:
         if encoding is None:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
+
         response = await stub.Range(
-            EtcdRequestGenerator.get_prefix(
-                key,
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                range_end=parse_range_end(key, encoding),
+                limit=limit,
                 max_create_revision=max_create_revision,
                 max_mod_revision=max_mod_revision,
                 min_create_revision=min_create_revision,
                 min_mod_revision=min_mod_revision,
                 revision=revision,
-                serializable=True,
-                sort_order=sort_order,
-                sort_target=sort_target,
-                encoding=encoding,
+                serializable=serializable,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
+            ),
+        )
+        ret: MutableMapping[str, str] = OrderedDict()
+        for x in response.kvs:
+            ret[x.key.decode(encoding)] = x.value
+        return ret
+
+    @grpc_exception_handler
+    async def get_prefix(
+        self, key: str,
+        max_create_revision: Optional[str] = None,
+        max_mod_revision: Optional[str] = None,
+        min_create_revision: Optional[str] = None,
+        min_mod_revision: Optional[str] = None,
+        revision: Optional[str] = None,
+        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
+        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
+        encoding: Optional[str] = None,
+        *,
+        limit: str | None = None,
+        serializable: bool = True,
+    ) -> Mapping[str, str]:
+        """
+        Gets the key-value in dictionary from the key-value store with given key prefix.
+        The scalar values of the dictionary will be parsed into `str`.
+        i.e. `get_prefix('/sorna/local')` call looks up all keys which has `/sorna/local` prefix.
+
+        Parameters
+        ---------
+        key
+            The key prefix to look up.
+        max_create_revision
+            The upper bound for returned key create revisions;
+            all keys with greater create revisions will be filtered away.
+        max_mod_revision
+            The upper bound for returned key mod revisions;
+            all keys with greater mod revisions will be filtered away.
+        min_create_revision
+            The lower bound for returned key create revisions;
+            all keys with lesser create revisions will be filtered away.
+        min_mod_revision
+            The lower bound for returned key mod revisions;
+            all keys with lesser mod revisions will be filtered away.
+        revision
+            The point-in-time of the key-value store to use for the range.
+            If revision is less or equal to zero, the range is over the newest key-value store.
+            If the revision has been compacted, ErrCompacted is returned as a response.
+        sort_order
+            Sort order. Defaults to `RangeRequestSortOrder.NONE`.
+        sort_target
+            Sort target. Defaults to `RangeRequestSortTarget.KEY`.
+        encoding
+            Character encoding type to encode/decode all types of byte based strings.
+            If this value is `None`, this method will use default encoding which is set when creating
+            this instance.
+            Defaults to `utf-8`.
+        limit
+            The maximum number of keys returned for the request.
+            When limit is set to "0", it is treated as no limit.
+        serializable
+            Sets the range request to use serializable member-local reads.
+
+        Returns
+        -------
+        value: Mapping[str, str]
+            Returns dictionary with all key-values which matches given key prefix.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+
+        response = await stub.Range(
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                range_end=parse_range_end(key, encoding),
+                limit=limit,
+                max_create_revision=max_create_revision,
+                max_mod_revision=max_mod_revision,
+                min_create_revision=min_create_revision,
+                min_mod_revision=min_mod_revision,
+                revision=revision,
+                serializable=serializable,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
             ),
         )
         ret: MutableMapping[str, str] = OrderedDict()
@@ -712,8 +776,10 @@ class EtcdCommunicator:
         return ret
 
     @grpc_exception_handler
-    async def get_range(
-        self, key: str, range_end: str,
+    async def get_range_bytes(
+        self,
+        key: str,
+        range_end: str,
         limit: Optional[str] = None,
         max_create_revision: Optional[str] = None,
         max_mod_revision: Optional[str] = None,
@@ -723,6 +789,8 @@ class EtcdCommunicator:
         sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
         sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
         encoding: Optional[str] = None,
+        *,
+        serializable: bool = True,
     ) -> Mapping[str, str]:
         """
         Gets the key-value in dictionary from the key-value store with keys in [key, range_end) range.
@@ -758,6 +826,8 @@ class EtcdCommunicator:
             If this value is `None`, this method will use default encoding which is set when creating
             this instance.
             Defaults to `utf-8`.
+        serializable
+            Sets the range request to use serializable member-local reads.
 
         Returns
         -------
@@ -768,18 +838,99 @@ class EtcdCommunicator:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
         response = await stub.Range(
-            EtcdRequestGenerator.get_range(
-                key, range_end,
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                range_end=range_end.encode(encoding),
                 limit=limit,
                 max_create_revision=max_create_revision,
                 max_mod_revision=max_mod_revision,
                 min_create_revision=min_create_revision,
                 min_mod_revision=min_mod_revision,
                 revision=revision,
-                serializable=True,
-                sort_order=sort_order,
-                sort_target=sort_target,
-                encoding=encoding,
+                serializable=serializable,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
+            ),
+        )
+        ret: MutableMapping[str, str] = OrderedDict()
+        for x in response.kvs:
+            ret[x.key.decode(encoding)] = x.value
+        return ret
+
+    @grpc_exception_handler
+    async def get_range(
+        self, key: str, range_end: str,
+        limit: Optional[str] = None,
+        max_create_revision: Optional[str] = None,
+        max_mod_revision: Optional[str] = None,
+        min_create_revision: Optional[str] = None,
+        min_mod_revision: Optional[str] = None,
+        revision: Optional[str] = None,
+        sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
+        sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
+        encoding: Optional[str] = None,
+        *,
+        serializable: bool = True,
+    ) -> Mapping[str, str]:
+        """
+        Gets the key-value in dictionary from the key-value store with keys in [key, range_end) range.
+        The scalar values of the dictionary will be parsed into `str`.
+
+        Parameters
+        ---------
+        key
+            Start of key range.
+        range_end
+            End of key range.
+        max_create_revision
+            The upper bound for returned key create revisions;
+            all keys with greater create revisions will be filtered away.
+        max_mod_revision
+            The upper bound for returned key mod revisions;
+            all keys with greater mod revisions will be filtered away.
+        min_create_revision
+            The lower bound for returned key create revisions;
+            all keys with lesser create revisions will be filtered away.
+        min_mod_revision
+            The lower bound for returned key mod revisions;
+            all keys with lesser mod revisions will be filtered away.
+        revision
+            The point-in-time of the key-value store to use for the range.
+            If revision is less or equal to zero, the range is over the newest key-value store.
+            If the revision has been compacted, ErrCompacted is returned as a response.
+        sort_order
+            Sort order. Defaults to `RangeRequestSortOrder.NONE`.
+        sort_target
+            Sort target. Defaults to `RangeRequestSortTarget.KEY`.
+        encoding
+            Character encoding type to encode/decode all types of byte based strings.
+            If this value is `None`, this method will use default encoding which is set when creating
+            this instance.
+            Defaults to `utf-8`.
+        serializable
+            Sets the range request to use serializable member-local reads.
+
+        Returns
+        -------
+        value: Mapping[str, str]
+            Returns dictionary with all key-values which matches given key prefix.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+        response = await stub.Range(
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                range_end=range_end.encode(encoding),
+                limit=limit,
+                max_create_revision=max_create_revision,
+                max_mod_revision=max_mod_revision,
+                min_create_revision=min_create_revision,
+                min_mod_revision=min_mod_revision,
+                revision=revision,
+                serializable=serializable,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
             ),
         )
         ret: MutableMapping[str, str] = OrderedDict()
@@ -788,9 +939,51 @@ class EtcdCommunicator:
         return ret
 
     @grpc_exception_handler
+    async def delete_bytes(
+        self,
+        key: str,
+        prev_kv: bool = False,
+        encoding: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Deletes the given key the key-value store.
+        A delete request increments the revision of the key-value store
+        and generates a delete event in the event history for every deleted key.
+
+        Parameters
+        ---------
+        key
+            The key to delete.
+        prev_kv
+            If this value set to `True` and previous value with associated target key exists,
+            this method will return previous value.
+        encoding
+            Character encoding type to encode/decode key.
+            Defaults to `utf-8`.
+
+        Returns
+        ------
+        value: Optional[str]
+            If `prev_kv` is set to `True` and previous value exists, returns previous value.
+            Otherwise it will just return `None`.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+        response = await stub.DeleteRange(
+            rpc_pb2.DeleteRangeRequest(key=key.encode(encoding)),
+        )
+        if prev_kv and len(response.prev_kvs) > 0:
+            return response.prev_kvs[0].value
+        else:
+            return None
+
+    @grpc_exception_handler
     async def delete(
-        self, key: str,
-        prev_kv: bool = False, encoding: Optional[str] = None,
+        self,
+        key: str,
+        prev_kv: bool = False,
+        encoding: Optional[str] = None,
     ) -> Optional[str]:
         """
         Deletes the given key the key-value store.
@@ -819,9 +1012,53 @@ class EtcdCommunicator:
         if encoding is None:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
-        response = await stub.DeleteRange(EtcdRequestGenerator.delete(key, encoding=encoding))
+        response = await stub.DeleteRange(
+            rpc_pb2.DeleteRangeRequest(key=key.encode(encoding)),
+        )
         if prev_kv and len(response.prev_kvs) > 0:
             return response.prev_kvs[0].value.decode(encoding)
+        else:
+            return None
+
+    @grpc_exception_handler
+    async def delete_prefix_bytes(
+        self, key: str,
+        prev_kv: bool = False, encoding: Optional[str] = None,
+    ) -> Optional[List[Optional[str]]]:
+        """
+        Deletes keys with given prefix and its associated values from the key-value store.
+        A delete request increments the revision of the key-value store
+        and generates a delete event in the event history for every deleted key.
+
+        Parameters
+        ---------
+        key
+            The key prefix to delete.
+        prev_kv
+            If this value set to `True` and previous value with associated target key exists,
+            this method will return previous value.
+        encoding
+            Character encoding type to encode/decode key.
+            Defaults to `utf-8`.
+
+        Returns
+        ------
+        values: Optional[List[Optional[str]]]
+            If `prev_kv` is set to `True` and previous value exists, returns previous value.
+            Otherwise it will just return `None`.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+        response = await stub.DeleteRange(rpc_pb2.DeleteRangeRequest(
+            key=key.encode(encoding),
+            range_end=parse_range_end(key, encoding),
+        ))
+        if prev_kv:
+            return [
+                x.value.decode(encoding) if x.value is not None else None
+                for x in response.prev_kvs
+            ]
         else:
             return None
 
@@ -857,12 +1094,58 @@ class EtcdCommunicator:
         if encoding is None:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
-        response = await stub.DeleteRange(EtcdRequestGenerator.delete_prefix(key, encoding=encoding))
+        response = await stub.DeleteRange(rpc_pb2.DeleteRangeRequest(
+            key=key.encode(encoding),
+            range_end=parse_range_end(key, encoding),
+        ))
         if prev_kv:
             return [
                 x.value.decode(encoding) if x.value is not None else None
                 for x in response.prev_kvs
             ]
+        else:
+            return None
+
+    @grpc_exception_handler
+    async def delete_range_bytes(
+        self, key: str, range_end: str,
+        prev_kv: bool = False, encoding: Optional[str] = None,
+    ) -> Optional[List[Optional[str]]]:
+        """
+        Deletes the given range from the key-value store.
+        A delete request increments the revision of the key-value store
+        and generates a delete event in the event history for every deleted key.
+
+        Parameters
+        ---------
+        key
+            Start of key range.
+        range_end
+            End of key range.
+        prev_kv
+            If this value set to `True` and previous value with associated target key exists,
+            this method will return previous value.
+        encoding
+            Character encoding type to encode/decode key.
+            Defaults to `utf-8`.
+
+        Returns
+        ------
+        values: Optional[str]
+            If `prev_kv` is set to `True` and previous value exists, returns previous value.
+            Otherwise it will just return `None`.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+        response = await stub.DeleteRange(
+            rpc_pb2.DeleteRangeRequest(
+                key=key.encode(encoding),
+                range_end=range_end.encode(encoding),
+            ),
+        )
+        if prev_kv:
+            return [x.value for x in response.prev_kvs]
         else:
             return None
 
@@ -901,7 +1184,11 @@ class EtcdCommunicator:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
         response = await stub.DeleteRange(
-            EtcdRequestGenerator.delete_range(key, range_end, encoding=encoding))
+            rpc_pb2.DeleteRangeRequest(
+                key=key.encode(encoding),
+                range_end=range_end.encode(encoding),
+            ),
+        )
         if prev_kv:
             return [
                 x.value.decode(encoding) if x.value is not None else None
@@ -921,6 +1208,9 @@ class EtcdCommunicator:
         sort_order: RangeRequestSortOrder = RangeRequestSortOrder.NONE,
         sort_target: RangeRequestSortTarget = RangeRequestSortTarget.KEY,
         encoding: Optional[str] = None,
+        *,
+        limit: str | None = None,
+        serializable: bool = True,
     ) -> List[str]:
         """
         Gets the keys which has given prefix from the key-value store.
@@ -954,6 +1244,11 @@ class EtcdCommunicator:
             If this value is `None`, this method will use default encoding which is set when creating
             this instance.
             Defaults to `utf-8`.
+        limit
+            The maximum number of keys returned for the request.
+            When limit is set to "0", it is treated as no limit.
+        serializable
+            Sets the range request to use serializable member-local reads.
 
         Returns
         -------
@@ -964,17 +1259,19 @@ class EtcdCommunicator:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
         response = await stub.Range(
-            EtcdRequestGenerator.keys_prefix(
-                key,
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                range_end=parse_range_end(key, encoding),
+                keys_only=True,
+                limit=limit,
                 max_create_revision=max_create_revision,
                 max_mod_revision=max_mod_revision,
                 min_create_revision=min_create_revision,
                 min_mod_revision=min_mod_revision,
                 revision=revision,
-                serializable=True,
-                sort_order=sort_order,
-                sort_target=sort_target,
-                encoding=encoding,
+                serializable=serializable,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
             ),
         )
         return [x.key.decode(encoding) for x in response.kvs]
@@ -1037,8 +1334,10 @@ class EtcdCommunicator:
             encoding = self.encoding
         stub = rpc_pb2_grpc.KVStub(self.channel)
         response = await stub.Range(
-            EtcdRequestGenerator.keys_range(
-                key, range_end,
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
+                range_end=range_end.encode(encoding),
+                keys_only=True,
                 limit=limit,
                 max_create_revision=max_create_revision,
                 max_mod_revision=max_mod_revision,
@@ -1046,9 +1345,8 @@ class EtcdCommunicator:
                 min_mod_revision=min_mod_revision,
                 revision=revision,
                 serializable=serializable,
-                sort_order=sort_order,
-                sort_target=sort_target,
-                encoding=encoding,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
             ),
         )
         return [x.key.decode(encoding) for x in response.kvs]
@@ -1440,13 +1738,57 @@ class EtcdTransaction:
         self.success = EtcdTransactionAction(encoding=encoding)
         self.failure = EtcdTransactionAction(encoding=encoding)
 
-    async def execute(
+    async def execute_bytes(
         self,
         compares: List[rpc_pb2.Compare],  # type: ignore
         encoding: Optional[str] = None,
     ) -> TxnReturnType:
         """
         Executes Txn and returns results.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        txn_request = rpc_pb2.TxnRequest()
+        txn_request.compare.extend(compares)
+        for key in ('success', 'failure'):
+            requests: List[TransactionRequest] = getattr(self, key).requests
+            for request in requests:
+                rop = rpc_pb2.RequestOp()
+                if isinstance(request, PutRequestType):
+                    rop.request_put.CopyFrom(request)
+                elif isinstance(request, RangeRequestType):
+                    rop.request_range.CopyFrom(request)
+                elif isinstance(request, DeleteRangeRequestType):
+                    rop.request_delete_range.CopyFrom(request)
+                getattr(txn_request, key).extend([rop])
+        stub = rpc_pb2_grpc.KVStub(self.channel)
+        result = await stub.Txn(txn_request)
+
+        ret: TxnReturnValues = []
+        for response in result.responses:
+            response_type = response.WhichOneof('response')
+            if response_type == 'response_put':
+                ret.append({
+                    "revision": response.response_put.header.revision,
+                })
+            elif response_type == 'response_range':
+                ret.append({
+                    x.key.decode(encoding): x.value
+                    for x in response.response_range.kvs
+                })
+            elif response_type == 'response_delete_range':
+                ret.append(None)  # TODO: Handle delete response
+            else:
+                ret.append(None)
+        return TxnReturnType(ret, result.succeeded)
+
+    async def execute(
+        self,
+        compares: List[rpc_pb2.Compare],  # type: ignore
+        encoding: Optional[str] = None,
+    ) -> TxnReturnType:
+        """
+        Executes Txn and returns results whose values are parsed in `str`.
         """
         if encoding is None:
             encoding = self.encoding
@@ -1501,6 +1843,29 @@ class EtcdTransactionAction:
     def add_callback(self, cb: Optional[Callable[[bool], None]]) -> None:
         self.callback = cb
 
+    def put_bytes(
+        self,
+        key: str,
+        value: Optional[bytes],
+        lease: Optional[int] = None,
+        ignore_value: bool = False,
+        ignore_lease: bool = False,
+        encoding: Optional[str] = None,
+    ) -> None:
+        """
+        Puts given key into the key-value store.
+        The value should be `bytes`.
+        """
+        if encoding is None:
+            encoding = self.encoding
+        self.requests.append(
+            rpc_pb2.PutRequest(
+                key=key.encode(encoding),
+                value=value,
+                lease=lease, ignore_lease=ignore_lease, ignore_value=ignore_value,
+            ),
+        )
+
     def put(
         self, key: str, value: Optional[str],
         lease: Optional[int] = None,
@@ -1510,19 +1875,21 @@ class EtcdTransactionAction:
     ) -> None:
         """
         Puts given key into the key-value store.
+        The value should be `str`.
         """
         if encoding is None:
             encoding = self.encoding
         self.requests.append(
-            EtcdRequestGenerator.put(
-                key, value,
-                lease=lease, ignore_lease=ignore_lease,
-                ignore_value=ignore_value, encoding=encoding,
+            rpc_pb2.PutRequest(
+                key=key.encode(encoding),
+                value=value.encode(encoding) if value else None,
+                lease=lease, ignore_lease=ignore_lease, ignore_value=ignore_value,
             ),
         )
 
     def get(
-        self, key: str,
+        self,
+        key: str,
         limit: Optional[str] = None,
         max_create_revision: Optional[str] = None,
         max_mod_revision: Optional[str] = None,
@@ -1540,8 +1907,8 @@ class EtcdTransactionAction:
         if encoding is None:
             encoding = self.encoding
         self.requests.append(
-            EtcdRequestGenerator.get(
-                key,
+            rpc_pb2.RangeRequest(
+                key=key.encode(encoding),
                 limit=limit,
                 max_create_revision=max_create_revision,
                 max_mod_revision=max_mod_revision,
@@ -1549,9 +1916,8 @@ class EtcdTransactionAction:
                 min_mod_revision=min_mod_revision,
                 revision=revision,
                 serializable=serializable,
-                sort_order=sort_order,
-                sort_target=sort_target,
-                encoding=encoding,
+                sort_order=sort_order.value,
+                sort_target=sort_target.value,
             ),
         )
 
@@ -1563,7 +1929,7 @@ class EtcdTransactionAction:
         """
         if encoding is None:
             encoding = self.encoding
-        self.requests.append(EtcdRequestGenerator.delete(key, encoding=encoding))
+        self.requests.append(rpc_pb2.DeleteRangeRequest(key=key.encode(encoding)))
 
 
 class EtcdLockManager:
