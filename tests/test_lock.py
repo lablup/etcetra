@@ -12,20 +12,20 @@ async def test_lock(etcd: EtcdClient):
     queue: Queue[int] = Queue()
 
     async def _lock_task_1(queue: Queue[int]):
-        global lock_1_entered
+        # global lock_1_entered
         async with etcd.with_lock('/test/locka'):
             queue.put(1)
             await asyncio.sleep(10)
 
     async def _lock_task_2(queue: Queue[int]):
-        global lock_2_entered
+        # global lock_2_entered
         await asyncio.sleep(3)
         async with etcd.with_lock('/test/locka'):
             queue.put(2)
             await asyncio.sleep(10)
 
     async def _lock_task_3(queue: Queue[int]):
-        global lock_3_entered
+        # global lock_3_entered
         await asyncio.sleep(3)
         async with etcd.with_lock('/test/lockb'):
             queue.put(3)
